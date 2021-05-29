@@ -14,14 +14,14 @@ void processInput(GLFWwindow *window);
 
 //SF_Sequential sf;
 
-float vertices[9999]; //SPAWNED_ACTORS * 9
+float vertices[SPAWNED_ACTORS * 9]; //SPAWNED_ACTORS * 9
 const float FPS = 60.f;
 
-const float size = 0.01f;
+const float size = 0.004f;
 
 // settings
-const unsigned int SCR_WIDTH = 1280;
-const unsigned int SCR_HEIGHT = 960;
+const unsigned int SCR_WIDTH = 1440;
+const unsigned int SCR_HEIGHT = 1080;
 
 const char* vertexShaderSource = "#version 330 core\n"
 "layout (location = 0) in vec3 aPos;\n"
@@ -45,20 +45,22 @@ void construct_triangle(GLfloat* triangle, float2 pos, float2 dir)
 
 	if(magnitudeH(dir) > 0.1f)
 	{
+		float2 dirSize = make_float2(1.5f * size * dir.x, 1.5f * size * dir.y);
         triangle[0] = pos.x + 1.5f * size * dir.x;
         triangle[1] = pos.y + 1.5f * size * dir.y;
         triangle[2] = 0.f;
 
-        triangle[3] = pos.x - size * dir.x + size * orth_dir.x;
-        triangle[4] = pos.y - size * dir.y + size * orth_dir.y;
+        triangle[3] = pos.x - dirSize.x + size * orth_dir.x;
+        triangle[4] = pos.y - dirSize.y + size * orth_dir.y;
         triangle[5] = 0.f;
 
-        triangle[6] = pos.x - size * dir.x - size * orth_dir.x;
-        triangle[7] = pos.y - size * dir.y - size * orth_dir.y;
+        triangle[6] = pos.x - dirSize.x - size * orth_dir.x;
+        triangle[7] = pos.y - dirSize.y - size * orth_dir.y;
         triangle[8] = 0.f;
 	}
 	else
 	{
+		/*
         triangle[0] = pos.x;
         triangle[1] = pos.y + 2.f * size;
         triangle[2] = 0.f;
@@ -70,6 +72,7 @@ void construct_triangle(GLfloat* triangle, float2 pos, float2 dir)
         triangle[6] = pos.x - size;
         triangle[7] = pos.y - size;
         triangle[8] = 0.f;
+        */
 	}
 }
 

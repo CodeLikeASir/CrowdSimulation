@@ -7,16 +7,16 @@
 #include <cuda_runtime.h>
 #include "SocialForce.h"
 
-#define  SPAWNED_ACTORS		9 // has to be squared value
-#define  CELLS_PER_AXIS		12
+#define  SPAWNED_ACTORS		65536 // has to be squared value
+#define  CELLS_PER_AXIS		120
 #define  CELL_SIZE			4
 #define	 SAFEZONE			2
 
-#define  EPSILON			.75f
+#define  EPSILON			10.f
 #define  S					.02f
 #define  R					2.f
-#define  DELTA				0.1f
-#define  THETA				0.3f
+#define  DELTA				1.f
+#define  THETA				0.2f
 #define  EULER				2.7182818284f
 #define  STATE_FREE			1
 
@@ -26,6 +26,8 @@
 
 #define TOTAL_CELLS			CELLS_PER_AXIS * CELLS_PER_AXIS
 #define TOTAL_SPACES		TOTAL_CELLS * MAX_OCCUPATION
+
+#define DRAWN_ACTORS		100
 
 __device__ inline float2 operator+(const float2& lhs, const float2& rhs)
 {

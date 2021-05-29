@@ -238,28 +238,23 @@ void init()
 	{
 		grid[i] = Person();
 	}
-	/*
+	
 	// Generate random persons here!
-	int actorsPerAxis = sqrtf(SPAWNED_ACTORS) - 1;
+	int actorsPerAxis = sqrtf(SPAWNED_ACTORS);
 	int spacing = CELLS_PER_AXIS * CELL_SIZE / actorsPerAxis;
-	for(int x = 1; x < actorsPerAxis; x++)
+	for(int x = 0; x < actorsPerAxis; x++)
 	{
-		for(int y = 1; y < actorsPerAxis; y++)
+		for(int y = 0; y < actorsPerAxis; y++)
 		{
 			float2 spawnPos = make_float2(x * spacing, y * spacing);
 			addToGrid(Person(spawnPos, getRandomPos()));
-			std::cout << "Spawned at (" << spawnPos.x << "|" << spawnPos.y << ")\n";
+			//std::cout << "Spawned at (" << spawnPos.x << "|" << spawnPos.y << ")\n";
 		}
 	}
-	*/
 	
-	//grid[0] = ;
-	//grid[1] = Person(make_float2(10, 10), make_float2(1, 10));
-	//grid[2] = Person(make_float2(23, 23), make_float2(5, 5));
-	
-	addToGrid(Person(make_float2(1, 1), make_float2(10, 4)));
-	addToGrid(Person(make_float2(10, 10), make_float2(1, 10)));
-	addToGrid(Person(make_float2(23, 23), make_float2(5, 5)));
+	//addToGrid(Person(make_float2(1, 1), make_float2(10, 4)));
+	//addToGrid(Person(make_float2(10, 10), make_float2(1, 10)));
+	//addToGrid(Person(make_float2(23, 23), make_float2(5, 5)));
 
 	cudaMalloc((void**)&deviceGrid, TOTAL_SPACES * sizeof(Person));
 	cudaMemcpy(deviceGrid, grid, TOTAL_SPACES * sizeof(Person), cudaMemcpyHostToDevice);
@@ -309,16 +304,24 @@ int simulate()
 std::vector<PersonVisuals> convertToVisual(bool debugPrint)
 {
 	std::vector<PersonVisuals> persons;
+	int addedActors = 0;
 
 	for (int i = 0; i < TOTAL_SPACES; i++)
 	{
 		Person& p = grid[i];
 		if (p.state != FREE)
 		{
-			persons.push_back(PersonVisuals(simToGL(p.position), p.direction));
+			float2 dir = p.direction;
+			dir.y = -dir.y;
+			persons.push_back(PersonVisuals(simToGL(p.position), dir));
+
+			if(++addedActors >= DRAWN_ACTORS)
+			{
+				break;
+			}
 		}
 	}
-
+	
 	return persons;
 }
 
