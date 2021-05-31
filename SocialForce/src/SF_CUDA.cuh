@@ -7,68 +7,28 @@
 #include <cuda_runtime.h>
 #include "SocialForce.h"
 
-#define  SPAWNED_ACTORS		65536 // has to be squared value
-#define  CELLS_PER_AXIS		120
-#define  CELL_SIZE			4
-#define	 SAFEZONE			2
+// Define scope of simulation
+#define  SPAWNED_ACTORS		81 // should be a squared value for optimal spacing
+#define  CELLS_PER_AXIS		12 // Number of cells per axis, this value squared = total cells
+#define  CELL_SIZE			4 // Size of cell in meters
+#define  MAX_OCCUPATION		32 // Max number of actors per cell
+#define	 SAFEZONE			2 // Safezone to screen edges
+#define  TOTAL_CELLS		CELLS_PER_AXIS * CELLS_PER_AXIS
+#define  TOTAL_SPACES		TOTAL_CELLS * MAX_OCCUPATION
+#define  MIN_DIST			.05f // Minimum distance to goal, before it's reached
+#define  SPEED				1.f // Default speed of actors
+#define  DRAWN_ACTORS		100 // Number of actors drawn on screen (others will still be simulated)
 
-#define  EPSILON			10.f
-#define  S					.02f
-#define  R					2.f
-#define  DELTA				1.f
-#define  THETA				0.2f
-#define  EULER				2.7182818284f
-#define  STATE_FREE			1
+// Parameters for social force calculations
+#define  S					1.f // Weight of social force
+#define  EPSILON			1.f // Weight of own velocity
+#define  R					2.f // Max distance of social force
+#define  DELTA				.1f // Time delta simulated per step
+#define  THETA				0.2f // Weight of sf for actors behind others
+#define  EULER				2.7182818284f // Rounded version of Euler's number
 
-#define  minDist			2.f
-#define  speed				1.f
-#define  MAX_OCCUPATION		32
-
-#define TOTAL_CELLS			CELLS_PER_AXIS * CELLS_PER_AXIS
-#define TOTAL_SPACES		TOTAL_CELLS * MAX_OCCUPATION
-
-#define DRAWN_ACTORS		100
-
-__device__ inline float2 operator+(const float2& lhs, const float2& rhs)
-{
-	return make_float2(lhs.x + rhs.x, lhs.y + rhs.y);
-}
-
-__device__ inline float2 operator-(const float2& lhs, const float2& rhs)
-{
-	return make_float2(lhs.x - rhs.x, lhs.y - rhs.y);
-}
-
-__device__ inline float dot(const float2& lhs, const float2& rhs)
-{
-	return lhs.x * rhs.x + lhs.y * rhs.y;
-}
-
-__device__ inline float2 operator*(const float lhs, const float2& rhs)
-{
-	return make_float2(lhs * rhs.x, lhs * rhs.y);
-}
-
-__device__ inline float2 operator*(const float2& lhs, const float rhs)
-{
-	return rhs * lhs;
-}
-
-__device__ inline float2 operator/(const float2& lhs, const float rhs)
-{
-	return make_float2(lhs.x / rhs, lhs.y / rhs);
-}
-
-__device__ inline float magnitude(const float2& val)
-{
-	return sqrtf(val.x * val.x + val.y * val.y);
-}
-
-__device__ inline float2 normalize(const float2 val)
-{
-	const float mag = sqrtf(val.x * val.x + val.y * val.y);
-	return make_float2(val.x / mag, val.y / mag);
-}
+// Defines weight of congestion avoidance and dispersion force
+#define AVOIDANCE_FORCE		0.f
 
 __device__ inline int cellPosToIndex(short x, short y)
 {
@@ -97,6 +57,22 @@ __device__ inline void debugCUDA(Person* grid)
 	{
 		grid[0].velocity = make_float2(13.f, 37.f);
 	}
+}
+
+__device__ inline int maskToInt(int mask)
+{
+	int result = 0;
+	while (mask != 0)
+	{
+		mask = mask & (mask - 1);
+		result++;
+	}
+	return result;
+}
+
+__device__ inline bool isnan(float2 vec)
+{
+	return isnan(vec.x) || isnan(vec.y);
 }
 
 inline float2 normalizeH(const float2 val)
@@ -128,4 +104,5 @@ std::vector<PersonVisuals> convertToVisual(bool debugPrint);
 float2 simToGL(float2 pos);
 
 void init();
+void initTest();
 void close();

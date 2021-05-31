@@ -14,5 +14,6 @@
     <ClInclude Include="src\SF_Sequential.h" />
     <ClInclude Include="src\SF_CUDA.cuh" />
     <ClInclude Include="src\SocialForce.h" />
+    <ClInclude Include="src\Math_Helper.cuh" />
   </ItemGroup>
 </Project>

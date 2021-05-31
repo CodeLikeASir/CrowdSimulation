@@ -1,14 +1,16 @@
 ﻿  Compiling CUDA source file src\SF_CUDA.cu...
   
   C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce>"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\bin\nvcc.exe" -gencode=arch=compute_52,code=\"sm_52,compute_52\" --use-local-env -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29910\bin\HostX86\x64" -x cu   -IC:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\ExternalResources\GLFW\include -IC:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\ExternalResources\GLAD -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\include" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\include"  -G   --keep-dir x64\Debug  -maxrregcount=0  --machine 64 --compile -cudart static  -g  -DWIN32 -DWIN64 -D_DEBUG -D_CONSOLE -D_MBCS -Xcompiler "/EHsc /W3 /nologo /Od /Fdx64\Debug\vc142.pdb /FS /Zi /RTC1 /MDd " -o x64\Debug\SF_CUDA.cu.obj "C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_CUDA.cu" 
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_CUDA.cu(125): warning : variable "dffff" was declared but never referenced
+  
   SF_CUDA.cu
-C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_CUDA.cu(216): warning C4244: "Argument": Konvertierung von "float" in "int", möglicher Datenverlust
-C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_CUDA.cu(216): warning C4244: "Argument": Konvertierung von "float" in "int", möglicher Datenverlust
-C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_CUDA.cu(243): warning C4244: "Initialisierung": Konvertierung von "float" in "int", möglicher Datenverlust
-C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_CUDA.cu(249): warning C4244: "Argument": Konvertierung von "int" in "float", möglicher Datenverlust
-C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_CUDA.cu(249): warning C4244: "Argument": Konvertierung von "int" in "float", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_CUDA.cu(234): warning C4244: "Argument": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_CUDA.cu(234): warning C4244: "Argument": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_CUDA.cu(264): warning C4244: "Initialisierung": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_CUDA.cu(270): warning C4244: "Argument": Konvertierung von "int" in "float", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_CUDA.cu(270): warning C4244: "Argument": Konvertierung von "int" in "float", möglicher Datenverlust
   Application.cpp
 C:\Program Files (x86)\Windows Kits\10\Include\10.0.18362.0\shared\minwindef.h(130,1): warning C4005: "APIENTRY": Makro-Neudefinition
 C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\ExternalResources\GLAD\glad\glad.h(32): message : Siehe vorherige Definition von "APIENTRY"
-C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\Application.cpp(224,19): warning C4244: "Argument": Konvertierung von "float" in "DWORD", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\Application.cpp(236,19): warning C4244: "Argument": Konvertierung von "float" in "DWORD", möglicher Datenverlust
   SocialForce.vcxproj -> C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\x64\Debug\SocialForce.exe

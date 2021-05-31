@@ -15,9 +15,10 @@ void processInput(GLFWwindow *window);
 //SF_Sequential sf;
 
 float vertices[SPAWNED_ACTORS * 9]; //SPAWNED_ACTORS * 9
-const float FPS = 60.f;
+const float FPS = 25.f;
+int maxIterations = 10000;
 
-const float size = 0.004f;
+const float size = 0.008f;
 
 // settings
 const unsigned int SCR_WIDTH = 1440;
@@ -37,17 +38,17 @@ const GLchar* fragmentShaderSource = "#version 330 core\n"
 "color = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
 "}\n\0";
 
-void construct_triangle(GLfloat* triangle, float2 pos, float2 dir)
+bool construct_triangle(GLfloat* triangle, float2 pos, float2 dir)
 {
 	//std::cout << "(" << pos.x << "|" << pos.y << ") moving (" << dir.x << "|" << dir.y << ")\n";
 	dir = normalizeH(dir);
 	const float2 orth_dir = make_float2(dir.y, -dir.x);
-
+	
 	if(magnitudeH(dir) > 0.1f)
 	{
 		float2 dirSize = make_float2(1.5f * size * dir.x, 1.5f * size * dir.y);
-        triangle[0] = pos.x + 1.5f * size * dir.x;
-        triangle[1] = pos.y + 1.5f * size * dir.y;
+        triangle[0] = pos.x + 1.2f * size * dir.x;
+        triangle[1] = pos.y + 1.2f * size * dir.y;
         triangle[2] = 0.f;
 
         triangle[3] = pos.x - dirSize.x + size * orth_dir.x;
@@ -57,10 +58,11 @@ void construct_triangle(GLfloat* triangle, float2 pos, float2 dir)
         triangle[6] = pos.x - dirSize.x - size * orth_dir.x;
         triangle[7] = pos.y - dirSize.y - size * orth_dir.y;
         triangle[8] = 0.f;
+
+		return true;
 	}
 	else
 	{
-		/*
         triangle[0] = pos.x;
         triangle[1] = pos.y + 2.f * size;
         triangle[2] = 0.f;
@@ -72,7 +74,8 @@ void construct_triangle(GLfloat* triangle, float2 pos, float2 dir)
         triangle[6] = pos.x - size;
         triangle[7] = pos.y - size;
         triangle[8] = 0.f;
-        */
+
+        return false;
 	}
 }
 
@@ -95,28 +98,36 @@ void printPositions(GLfloat* vertices, int size)
     }
 }
 
-void updateVisuals(bool debugPrint)
+bool updateVisuals(bool debugPrint)
 {
     std::vector<PersonVisuals> pv = convertToVisual(debugPrint);
+	bool drewTri = false;
 	
     for (int i = 0; i < pv.size(); i++)
     {
         PersonVisuals person = pv[i];
 
         GLfloat triangle[9];
-        construct_triangle(triangle, person.position, person.direction);
+
+    	/*drewTri =*/ construct_triangle(triangle, person.position, person.direction);
 
         for (int j = 0; j < 9; j++)
         {
             vertices[i * 9 + j] = triangle[j];
         }
     }
+
+	//return drewTri;
+	return true;
 }
 
-void updateSimulation()
+bool updateSimulation()
 {
     simulate();
-    updateVisuals(false);
+    if(!updateVisuals(false))
+		return false;
+
+	return true;
 }
 
 int main()
@@ -179,7 +190,8 @@ int main()
     glGenBuffers(1, &VBO);
 
 	//TODO: Change init here!
-	init();
+	//init();
+	initTest();
 	updateVisuals(false);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0); // Note that this is allowed, the call to glVertexAttribPointer registered VBO as the currently bound vertex buffer object so afterwards we can safely unbind
@@ -222,8 +234,14 @@ int main()
         glfwPollEvents();
 
     	Sleep(1000.f / FPS);
+        
+        if(!updateSimulation())
+			break;
 
-        updateSimulation();
+    	if(--maxIterations <= 0)
+    	{
+    		break;
+    	}
     }
 
     // glfw: terminate, clearing all previously allocated GLFW resources.

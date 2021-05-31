@@ -23,7 +23,7 @@ struct PersonVisuals
 class SF_Sequential
 {
 public:
-	Person grid[totalCells * maxOccupation];
+	Person cells[totalCells * maxOccupation];
 	float2 forceVectors[totalCells * maxOccupation * 9];
 	int debug_level = 0;
 	
@@ -96,7 +96,7 @@ public:
 
 	float2 calculate_ve(float v, float2 e);
 
-	// Initializes grid
+	// Initializes cells
 	void init();
 
 	float2 calculateSF(Person* personA, Person* personB);
@@ -106,7 +106,7 @@ public:
 		return "(" + std::to_string(vec.x) + " | " + std::to_string(vec.y) + ")";
 	}
 
-	// Prints states of grid
+	// Prints states of cells
 	void printGrid();
 	bool addToGrid(Person* p);
 
@@ -116,7 +116,7 @@ public:
 		int population = 0;
 		for (int i = cell * maxOccupation; i < (cell + 1) * maxOccupation; i++)
 		{
-			if (grid[i].state != FREE)
+			if (cells[i].state != FREE)
 				population++;
 		}
 

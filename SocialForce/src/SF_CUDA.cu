@@ -1,8 +1,11 @@
 ﻿#include "SF_CUDA.cuh"
+#include "Math_Helper.cuh"
 
-Person* grid;
+// Host variables
+Person* cells;
 
-Person* deviceGrid;
+// Device variables
+Person* deviceCells;
 int* debugDevice;
 int* debugHost;
 
@@ -54,7 +57,7 @@ __device__ float2 calculateSF(Person* personA, Person* personB)
 
 	float gamma_a = dot(r_ab, e2) >= 0.f ? THETA : 1 + DELTA * v_a0;
 
-	float V_ab = 1.0f * std::powf(EULER, -std::sqrtf(e1_result + e2_result / (gamma_a * gamma_a)) / R);
+	float V_ab = S * std::powf(EULER, -std::sqrtf(e1_result + e2_result / (gamma_a * gamma_a)) / R);
 
 	float2 f_ab = make_float2(-r_ab.x * V_ab, -r_ab.y * V_ab);
 
@@ -71,11 +74,14 @@ __global__ void calculateCellForce(Person* device_grid, int* debugVal)
 	Person* personA = &device_grid[cellA * MAX_OCCUPATION + threadIdx.x];
 
 	short2 cellBPos = make_short2(cellAPos.x - 1 + threadIdx.y, cellAPos.y - 1 + threadIdx.z);
+
 	short cellB = cellPosToCell(cellBPos);
 	float2 forceVector = make_float2(0.f, 0.f);
 
 	if (!(cellB < 0 || cellB >= CELLS_PER_AXIS * CELLS_PER_AXIS))
 	{
+		// People in analyzed cell
+		int blockppl = 0;
 		// Iterate over space in neighbor cell
 		for (int i = 0; i < MAX_OCCUPATION; i++)
 		{
@@ -89,6 +95,16 @@ __global__ void calculateCellForce(Person* device_grid, int* debugVal)
 				continue;
 
 			forceVector = forceVector + calculateSF(personA, other);
+			blockppl++;
+		}
+
+		// People in main/influenced cell
+		int ppl = maskToInt(__ballot_sync(0xFFFFFFFF, personA->state == OCCUPIED));
+
+		if ((threadIdx.y != 1 || threadIdx.z != 1) && (blockppl > 20 || ppl > 26))
+		{
+			forceVector.x -= (threadIdx.y - 1) * (blockppl - 20) * AVOIDANCE_FORCE;
+			forceVector.y -= (threadIdx.z - 1) * (blockppl - 20) * AVOIDANCE_FORCE;
 		}
 	}
 
@@ -96,17 +112,22 @@ __global__ void calculateCellForce(Person* device_grid, int* debugVal)
 
 	__syncthreads();
 
-	if (threadIdx.y == 0 && threadIdx.z == 0)
+	if (threadIdx.y == 1 && threadIdx.z == 1)
 	{
 		float2 resultForce = make_float2(0.f, 0.f);
 		for (int i = 0; i < 9; i++)
 		{
+			if (isnan(totalForces[threadIdx.x][i]))
+				continue;
+
 			resultForce = resultForce + totalForces[threadIdx.x][i];
 		}
+		if (magnitude(resultForce) > 0.1f)
+			int dffff = 0;
 
 		personA->velocity = make_float2(personA->velocity.x - resultForce.x, personA->velocity.y - resultForce.y);
 
-		float2 newPos = personA->position + personA->velocity;
+		float2 newPos = personA->position + personA->velocity * DELTA;
 
 		// Check if person moves to other cell
 		int oldCell = posToCell(personA->position.x, personA->position.y);
@@ -120,12 +141,11 @@ __global__ void calculateCellForce(Person* device_grid, int* debugVal)
 			// Look for space in new cell
 			for (int i = newCell * MAX_OCCUPATION; i < (newCell + 1) * MAX_OCCUPATION; i++)
 			{
-				if (atomicCAS((int*)&device_grid[i].state, FREE, RESERVED) == FREE)
+				if (atomicCAS(&device_grid[i].state, FREE, RESERVED) == FREE)
 				{
 					device_grid[cellA * MAX_OCCUPATION + threadIdx.x].state = LEAVING;
 
 					device_grid[i] = Person(device_grid[cellA * MAX_OCCUPATION + threadIdx.x]);
-					device_grid[i].velocity = device_grid[cellA * MAX_OCCUPATION + threadIdx.x].velocity;
 					device_grid[i].state = RESERVED;
 
 					cellChanged = true;
@@ -171,7 +191,7 @@ __global__ void completeMove(Person* device_grid, int* debugVal)
 			personA->goal.x - personA->position.x,
 			personA->goal.y - personA->position.y);
 
-		if (magnitude(goalDir) < minDist)
+		if (magnitude(goalDir) < MIN_DIST)
 		{
 			personA->goal = personA->position; //make_float2(0.f, 0.f); //getRandomPos();
 			personA->velocity = make_float2(0.f, 0.f);
@@ -181,7 +201,7 @@ __global__ void completeMove(Person* device_grid, int* debugVal)
 		{
 			goalDir = normalize(goalDir);
 			personA->direction = goalDir;
-			personA->velocity = goalDir * speed;
+			personA->velocity = goalDir * SPEED;
 		}
 	}
 
@@ -191,7 +211,6 @@ __global__ void completeMove(Person* device_grid, int* debugVal)
 __device__ bool reserveSpace(int newCell, int oldIndex)
 {
 	bool cellChanged = false;
-
 
 
 	return cellChanged;
@@ -220,49 +239,87 @@ bool addToGrid(Person p)
 	{
 		int index = cell * MAX_OCCUPATION + i;
 
-		if (grid[index].state != STATE_FREE)
+		if (cells[index].state != STATE_FREE)
 			continue;
 
-		grid[index] = Person(p);
+		cells[index] = Person(p);
 		placed = true;
 		break;
 	}
+
+	if (placed)
+		std::cout << "added to cell " << cell << "\n";
 
 	return placed;
 }
 
 void init()
 {
-	grid = (Person*)malloc(sizeof(Person) * TOTAL_SPACES);
+	cells = static_cast<Person*>(malloc(sizeof(Person) * TOTAL_SPACES));
 	for (int i = 0; i < TOTAL_SPACES; i++)
 	{
-		grid[i] = Person();
+		cells[i] = Person();
 	}
-	
+
 	// Generate random persons here!
 	int actorsPerAxis = sqrtf(SPAWNED_ACTORS);
 	int spacing = CELLS_PER_AXIS * CELL_SIZE / actorsPerAxis;
-	for(int x = 0; x < actorsPerAxis; x++)
+	for (int x = 0; x < actorsPerAxis; x++)
 	{
-		for(int y = 0; y < actorsPerAxis; y++)
+		for (int y = 0; y < actorsPerAxis; y++)
 		{
 			float2 spawnPos = make_float2(x * spacing, y * spacing);
 			addToGrid(Person(spawnPos, getRandomPos()));
 			//std::cout << "Spawned at (" << spawnPos.x << "|" << spawnPos.y << ")\n";
 		}
 	}
-	
+
 	//addToGrid(Person(make_float2(1, 1), make_float2(10, 4)));
 	//addToGrid(Person(make_float2(10, 10), make_float2(1, 10)));
 	//addToGrid(Person(make_float2(23, 23), make_float2(5, 5)));
 
-	cudaMalloc((void**)&deviceGrid, TOTAL_SPACES * sizeof(Person));
-	cudaMemcpy(deviceGrid, grid, TOTAL_SPACES * sizeof(Person), cudaMemcpyHostToDevice);
+	cudaMalloc((void**)&deviceCells, TOTAL_SPACES * sizeof(Person));
+	cudaMemcpy(deviceCells, cells, TOTAL_SPACES * sizeof(Person), cudaMemcpyHostToDevice);
 
 	int temp = 0;
 	debugHost = &temp;
 
-	debugDevice = 0;
+	debugDevice = nullptr;
+	cudaMalloc((void**)&debugDevice, sizeof(int));
+	cudaMemcpy(debugDevice, debugHost, sizeof(int), cudaMemcpyHostToDevice);
+}
+
+void initTest()
+{
+	cells = static_cast<Person*>(malloc(sizeof(Person) * TOTAL_SPACES));
+	for (int i = 0; i < TOTAL_SPACES; i++)
+	{
+		cells[i] = Person();
+	}
+	/*
+	for (int i = 0; i < 5; i++)
+	{
+		addToGrid(Person(make_float2(1, 1), make_float2(10, 4)));
+	}
+
+	for (int i = 0; i < 23; i++)
+	{
+		addToGrid(Person(make_float2(6, 1), make_float2(10, 4)));
+	}
+	*/
+
+	addToGrid(Person(make_float2(1, 1), make_float2(20, 1)));
+	addToGrid(Person(make_float2(20, 1.5), make_float2(1, 1.5)));
+	//addToGrid(Person(make_float2(1, 7), make_float2(18, 7)));
+	addToGrid(Person(make_float2(1, 13), make_float2(18, 13)));
+
+	cudaMalloc((void**)&deviceCells, TOTAL_SPACES * sizeof(Person));
+	cudaMemcpy(deviceCells, cells, TOTAL_SPACES * sizeof(Person), cudaMemcpyHostToDevice);
+
+	int temp = 0;
+	debugHost = &temp;
+
+	debugDevice = nullptr;
 	cudaMalloc((void**)&debugDevice, sizeof(int));
 	cudaMemcpy(debugDevice, debugHost, sizeof(int), cudaMemcpyHostToDevice);
 }
@@ -270,33 +327,23 @@ void init()
 void close()
 {
 	// Free memory
-	delete[] grid;
+	delete[] cells;
 	delete debugHost;
 
-	cudaFree(deviceGrid);
+	cudaFree(deviceCells);
 	cudaFree(debugDevice);
 }
 
 int simulate()
 {
-	calculateCellForce << < blocksPerGrid, threadsPerBlock >> > (deviceGrid, debugDevice);
+	calculateCellForce << < blocksPerGrid, threadsPerBlock >> >(deviceCells, debugDevice);
 	cudaDeviceSynchronize();
 
-	completeMove << < blocksPerGrid, 1 >> > (deviceGrid, debugDevice);
+	completeMove << < blocksPerGrid, 1 >> >(deviceCells, debugDevice);
 	cudaDeviceSynchronize();
 
-	cudaMemcpy(grid, deviceGrid, TOTAL_SPACES * sizeof(Person), cudaMemcpyDeviceToHost);
+	cudaMemcpy(cells, deviceCells, TOTAL_SPACES * sizeof(Person), cudaMemcpyDeviceToHost);
 	cudaMemcpy(debugHost, debugDevice, sizeof(int), cudaMemcpyDeviceToHost);
-
-	//std::cout << "\n\n!!!Important: " << *debugHost << " !!!\n\n\n";
-
-	for (int i = 0; i < TOTAL_SPACES; i++)
-	{
-		if (magnitudeH(grid[i].position) > 0.001f && false)
-			std::cout << i << ": " << grid[i].position.x << "|" << grid[i].position.y << "\n";
-	}
-
-	//std::cout << "SF: " << grid[0].velocity.x << "|" << grid[0].velocity.y << "\n";
 
 	return 0;
 }
@@ -308,20 +355,20 @@ std::vector<PersonVisuals> convertToVisual(bool debugPrint)
 
 	for (int i = 0; i < TOTAL_SPACES; i++)
 	{
-		Person& p = grid[i];
+		Person& p = cells[i];
 		if (p.state != FREE)
 		{
 			float2 dir = p.direction;
 			dir.y = -dir.y;
 			persons.push_back(PersonVisuals(simToGL(p.position), dir));
 
-			if(++addedActors >= DRAWN_ACTORS)
+			if (++addedActors >= DRAWN_ACTORS)
 			{
 				break;
 			}
 		}
 	}
-	
+
 	return persons;
 }
 
