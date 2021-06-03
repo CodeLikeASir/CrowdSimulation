@@ -122,8 +122,6 @@ __global__ void calculateCellForce(Person* device_grid, int* debugVal)
 
 			resultForce = resultForce + totalForces[threadIdx.x][i];
 		}
-		if (magnitude(resultForce) > 0.1f)
-			int dffff = 0;
 
 		personA->velocity = make_float2(personA->velocity.x - resultForce.x, personA->velocity.y - resultForce.y);
 
@@ -185,6 +183,8 @@ __global__ void completeMove(Person* device_grid, int* debugVal)
 			personA->state = OCCUPIED;
 		}
 
+		atomicAdd(debugVal, 1);
+		
 		personA->position = personA->position + personA->velocity * DELTA;
 
 		float2 goalDir = make_float2(
@@ -204,8 +204,6 @@ __global__ void completeMove(Person* device_grid, int* debugVal)
 			personA->velocity = goalDir * SPEED;
 		}
 	}
-
-	atomicAdd(debugVal, 1);
 }
 
 __device__ bool reserveSpace(int newCell, int oldIndex)
@@ -233,13 +231,19 @@ int toIndexH(int x, int y)
 bool addToGrid(Person p)
 {
 	int cell = toIndexH(p.position.x, p.position.y);
+
+	if(cell >= TOTAL_CELLS)
+	{
+		return false;
+	}
+	
 	bool placed = false;
 
 	for (int i = 0; i < MAX_OCCUPATION; i++)
 	{
 		int index = cell * MAX_OCCUPATION + i;
 
-		if (cells[index].state != STATE_FREE)
+		if (cells[index].state != FREE)
 			continue;
 
 		cells[index] = Person(p);
@@ -247,8 +251,8 @@ bool addToGrid(Person p)
 		break;
 	}
 
-	if (placed)
-		std::cout << "added to cell " << cell << "\n";
+	//if (placed)
+	//	std::cout << "added to cell " << cell << "\n";
 
 	return placed;
 }
@@ -261,22 +265,32 @@ void init()
 		cells[i] = Person();
 	}
 
-	// Generate random persons here!
-	int actorsPerAxis = sqrtf(SPAWNED_ACTORS);
-	int spacing = CELLS_PER_AXIS * CELL_SIZE / actorsPerAxis;
-	for (int x = 0; x < actorsPerAxis; x++)
+	int totallySpawned = 0;
+	int remainingSpawns = SPAWNED_ACTORS;
+	float spacing = .7f;
+	for(int x = 0; x < CELLS_PER_AXIS; x++)
 	{
-		for (int y = 0; y < actorsPerAxis; y++)
+		int posX = x * CELL_SIZE;
+		for(int y = 0; y < CELLS_PER_AXIS; y++)
 		{
-			float2 spawnPos = make_float2(x * spacing, y * spacing);
-			addToGrid(Person(spawnPos, getRandomPos()));
-			//std::cout << "Spawned at (" << spawnPos.x << "|" << spawnPos.y << ")\n";
+			int posY = y * CELL_SIZE;
+			for(int i = 0; i < 1; i++)
+			{
+				//float2 spawnPos = make_float2(posX + i * spacing, posY + i * spacing);
+				//addToGrid(Person(spawnPos, getRandomPos()));
+
+				float2 spawnPos = make_float2(posX + i / 4, posY + i % 4);
+				addToGrid(Person(spawnPos, getRandomPos()));
+
+				totallySpawned++;
+				if(--remainingSpawns <= 0)
+					goto endspawn;
+			}
 		}
 	}
 
-	//addToGrid(Person(make_float2(1, 1), make_float2(10, 4)));
-	//addToGrid(Person(make_float2(10, 10), make_float2(1, 10)));
-	//addToGrid(Person(make_float2(23, 23), make_float2(5, 5)));
+	endspawn:
+	std::cout << "Spawned " << totallySpawned << " people.\n";
 
 	cudaMalloc((void**)&deviceCells, TOTAL_SPACES * sizeof(Person));
 	cudaMemcpy(deviceCells, cells, TOTAL_SPACES * sizeof(Person), cudaMemcpyHostToDevice);
@@ -296,22 +310,14 @@ void initTest()
 	{
 		cells[i] = Person();
 	}
-	/*
-	for (int i = 0; i < 5; i++)
-	{
-		addToGrid(Person(make_float2(1, 1), make_float2(10, 4)));
-	}
-
-	for (int i = 0; i < 23; i++)
-	{
-		addToGrid(Person(make_float2(6, 1), make_float2(10, 4)));
-	}
-	*/
 
 	addToGrid(Person(make_float2(1, 1), make_float2(20, 1)));
 	addToGrid(Person(make_float2(20, 1.5), make_float2(1, 1.5)));
 	//addToGrid(Person(make_float2(1, 7), make_float2(18, 7)));
 	addToGrid(Person(make_float2(1, 13), make_float2(18, 13)));
+
+	addToGrid(Person(make_float2(5.f, 15.f), make_float2(20.f, 20.f)));
+	addToGrid(Person(make_float2(22.f, 22.f), make_float2(5.f, 15.f)));
 
 	cudaMalloc((void**)&deviceCells, TOTAL_SPACES * sizeof(Person));
 	cudaMemcpy(deviceCells, cells, TOTAL_SPACES * sizeof(Person), cudaMemcpyHostToDevice);
@@ -336,6 +342,8 @@ void close()
 
 int simulate()
 {
+	*debugHost = 0;
+	cudaMemcpy(debugDevice, debugHost, sizeof(int), cudaMemcpyHostToDevice);
 	calculateCellForce << < blocksPerGrid, threadsPerBlock >> >(deviceCells, debugDevice);
 	cudaDeviceSynchronize();
 
@@ -345,6 +353,29 @@ int simulate()
 	cudaMemcpy(cells, deviceCells, TOTAL_SPACES * sizeof(Person), cudaMemcpyDeviceToHost);
 	cudaMemcpy(debugHost, debugDevice, sizeof(int), cudaMemcpyDeviceToHost);
 
+	std::cout << "Simulated " << *debugHost << " people.\n";
+	/*
+	int people[5] = {0,0,0,0,0};
+	for(int i = 0; i < TOTAL_SPACES; i++)
+	{
+		switch(cells[i].state)
+		{
+			case FREE: people[0]++;
+			break;
+			case OCCUPIED: people[1]++;
+			break;
+			case RESERVED: people[2]++;
+			break;
+			case LEAVING: people[3]++;
+			break;
+			default: people[4]++;
+		}
+	}
+
+	std::cout << "Total: " << people[0] << " FREE | " << people[1] << " OCCUPIED | " <<
+		people[2] << " RESERVED | " << people[3] << " LEAVING | " << people[4] << " OTHER!\n";
+	
+	*/
 	return 0;
 }
 

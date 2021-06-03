@@ -7,163 +7,76 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "Math_Helper.cuh"
 #include "SocialForce.h"
-/*
-inline std::string float2ToString(float2 vec)
-{
-	return "(" + std::to_string(vec.x) + "|" + std::to_string(vec.y) + ")";
-}
-
-struct PersonVisuals
-{
-	float2 position;
-	float2 direction;
-};
+#include "Macros.h"
 
 class SF_Sequential
 {
 public:
-	Person cells[totalCells * maxOccupation];
-	float2 forceVectors[totalCells * maxOccupation * 9];
+	//float2 forceVectors[TOTAL_CELLS * MAX_OCCUPATION * 9];
 	int debug_level = 0;
-	
-	const float S = .2f;
-	const float R = 4.f;
-	float delta = 0.1f;
-	const float epsilon = .75f;
-	const float theta = 0.3f;
 
-	const float euler = 2.7182818284f;
+	static int cellPosToIndex(short x, short y)
+	{
+		return x + y * CELLS_PER_AXIS;
+	}
 
-	float maxDiff = 0.f;
+	static int personToCell(int index)
+	{
+		return index / MAX_OCCUPATION;
+	}
+
+	static short2 cellToCellPos(int index)
+	{
+		return make_short2(index % CELLS_PER_AXIS, index / CELLS_PER_AXIS);
+	}
+
+	static int cellPosToCell(short2 pos)
+	{
+		return pos.x + pos.y * CELLS_PER_AXIS;
+	}
+
+	static int cellPosToCell(int x, int y)
+	{
+		return x + y * CELLS_PER_AXIS;
+	}
+
+	static int posToCell(int x, int y)
+	{
+		int cellX = x / CELL_SIZE;
+		int cellY = y / CELL_SIZE;
+		return cellX + cellY * CELLS_PER_AXIS;
+	}
+
+	static int getFirstCellIndex(dim3 cell)
+	{
+		return (cell.x + cell.y * CELLS_PER_AXIS) * MAX_OCCUPATION;
+	}
+
+	float2 getRandomPos()
+	{
+		short x = rand() % (CELL_SIZE * CELLS_PER_AXIS - SAFEZONE) + SAFEZONE;
+		short y = rand() % (CELL_SIZE * CELLS_PER_AXIS - SAFEZONE) + SAFEZONE;
+		return make_float2(x, y);
+	}
+
 
 public:
-	// Helper functions
-	static float2 getRandomfloat2(short min, short max);
-	static float2 normalize(float2 vector);
-
-	float2 sum(const float2& lhs, const float2& rhs)
-	{
-		return make_float2(lhs.x + rhs.x, lhs.y + rhs.y);
-	}
-
-	float2 multiply(float lhs, const float2& rhs) const
-	{
-		return make_float2(lhs * rhs.x, lhs * rhs.y);
-	}
-
-	float2 mutiply(float lhs, const float2& rhs) const
-	{
-		return make_float2(lhs * rhs.x, lhs * rhs.y);
-	}
-
-	float2 diff(const float2& lhs, const float2& rhs)
-	{
-		return make_float2(lhs.x - rhs.x, lhs.y - rhs.y);
-	}
-
-	float2 divide(const float2& lhs, const float rhs)
-	{
-		return make_float2(lhs.x / rhs, lhs.y / rhs);
-	}
-
-	float2 tofloat2(const float2& in)
-	{
-		return make_float2(in.x, in.y);
-	}
-
-	float2 udiff(const float2& lhs, const float2& rhs)
-	{
-		return make_float2(lhs.x - rhs.x, lhs.y - rhs.y);
-	}
-
-	float dot(const float2& lhs, const float2& rhs)
-	{
-		return lhs.x * rhs.x + lhs.y * rhs.y;
-	}
-
-	float2 abs(float2 vec)
-	{
-		return make_float2(std::abs(vec.x), std::abs(vec.y));
-	}
-
-	float magnitude(const float2& vec)
-	{
-		return std::sqrtf(vec.x * vec.x + vec.y * vec.y);
-	}
-
-	float2 multiply(float2 vec, float scalar);
-
-	float2 calculate_ve(float v, float2 e);
-
-	// Initializes cells
-	void init();
-
-	float2 calculateSF(Person* personA, Person* personB);
-
 	static std::string floatToString(const float2 vec)
 	{
 		return "(" + std::to_string(vec.x) + " | " + std::to_string(vec.y) + ")";
 	}
 
-	// Prints states of cells
-	void printGrid();
-	bool addToGrid(Person* p);
-
-	// Calculates population of cell
-	int getCellPopulation(int cell)
-	{
-		int population = 0;
-		for (int i = cell * maxOccupation; i < (cell + 1) * maxOccupation; i++)
-		{
-			if (cells[i].state != FREE)
-				population++;
-		}
-
-		return population;
-	}
-
-	int posToCell(float2 pos)
-	{
-		int x = pos.x / cellSize;
-		int y = pos.y / cellSize;
-		return x + y * cellsPerAxis;
-	}
-
-	int cellPosToIndex(float2 cellPos)
-	{
-		return cellPosToIndex(cellPos.x, cellPos.y);
-	}
-
-	int cellPosToIndex(short x, short y)
-	{
-		return x + y * cellsPerAxis;
-	}
-
+	int getCellPopulation(uint3 cell);
+	void init();
+	float2 calculateSF(struct Person* personA, Person* personB);
+	int toIndex(int x, int y);
 	bool addToGrid(Person p);
-
-	float2 add_force(Person* p, float2 shortForce);
-	void update_positions();
-	void updatePosition(Person* p, float2 newPos);
-	float2 getRandomPos();
-	void debugerino();
-	void completeTraversal();
-	bool reserveSpace(Person* p, int cell, float2 newPos);
-	bool reserveSpace(Person* p, int cell);
-	
-	int getCellIndex(int x, int y);
-	//void calculateCellForce(int cellIndex, int posX, int posY);
-	int posToCell(int x, int y);
-	Person* init_test1(float newDelta);
-	Person* init_test2(float newDelta);
-	Person* init_test3(float newDelta);
-
-	void simulate(int steps);
-
-	void hard_reset();
-
-	std::vector<PersonVisuals> convertToVisual(bool debugPrint);
+	void host_function();
+	float2 calculateCellForce(int cellAPop, uint3 pseudeBlockIdx, uint3 pseudoThreadIdx);
+	void update_position(Person personA, float2 total_force, int cellIndex, int threadX);
+	void completeMove(uint3 pseudoBlockIdx);
+	std::vector<struct PersonVisuals> convertToVisual(bool debugPrint);
 	float2 simToGL(float2 pos);
-	float2 dirToGL(float2 dir);
 };
-*/

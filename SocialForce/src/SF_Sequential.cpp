@@ -1,122 +1,101 @@
 // ReSharper disable CppLocalVariableMayBeConst
 #include "SF_Sequential.h"
 #include <vector>
-/*
-float2 SF_Sequential::getRandomfloat2(short min, short max)
+
+static Person* cells;
+
+int SF_Sequential::getCellPopulation(uint3 cell)
 {
-	short x = rand() % (max - min + 1) + min;
-	short y = rand() % (max - min + 1) + min;
-	return make_float2(x, y);
+	int count = 0;
+	int firstIndex = getFirstCellIndex(cell);
+	for (int i = firstIndex; i < firstIndex + MAX_OCCUPATION; i++)
+	{
+		if (cells[i].state == OCCUPIED)
+		{
+			count++;
+		}
+	}
+
+	return count;
 }
 
-float2 SF_Sequential::normalize(float2 vector)
+void SF_Sequential::init()
 {
-	float magnitude = sqrtf(vector.x * vector.x + vector.y * vector.y);
-	vector.x /= magnitude;
-	vector.y /= magnitude;
-	return vector;
-}
+	cells = static_cast<Person*>(malloc(sizeof(Person) * TOTAL_SPACES));
+	for (int i = 0; i < TOTAL_SPACES; i++)
+	{
+		cells[i] = Person();
+	}
 
-float2 SF_Sequential::multiply(float2 vec, float scalar)
-{
-	vec.x *= scalar;
-	vec.y *= scalar;
-	return vec;
-}
+	int totallySpawned = 0;
+	
+	int remainingSpawns = SPAWNED_ACTORS;
+	float spacing = .7f;
+	for (int x = 0; x < CELLS_PER_AXIS; x++)
+	{
+		int posX = x * CELL_SIZE;
+		for (int y = 0; y < CELLS_PER_AXIS; y++)
+		{
+			int posY = y * CELL_SIZE;
+			for (int i = 0; i < 1; i++)
+			{
+				//float2 spawnPos = make_float2(posX + i * spacing, posY + i * spacing);
+				//addToGrid(Person(spawnPos, getRandomPos()));
 
-float2 operator*(float lhs, const float2& rhs)
-{
-	return make_float2(lhs * rhs.x, lhs * rhs.y);
-}
+				float2 spawnPos = make_float2(posX + i / 4, posY + i % 4);
+				addToGrid(Person(spawnPos, getRandomPos()));
 
-float2 SF_Sequential::calculate_ve(float v, float2 e)
-{
-	return v * e;
-}
+				totallySpawned++;
+				if (--remainingSpawns <= 0)
+					goto endspawn;
+			}
+		}
+	}
 
-float2 operator-(const float2& lhs, const float2& rhs)
-{
-	return make_float2(lhs.x - rhs.x, lhs.x - rhs.x);
+	endspawn:
+		std::cout << "Spawned " << totallySpawned << " people.\n";
 }
 
 float2 SF_Sequential::calculateSF(Person* personA, Person* personB)
 {
-	if (debug_level >= 1)
-		std::cout << "Calculating sf for " << float2ToString(personA->position) << " from " << float2ToString(personB->position) << "\n";
-	float v_a0 = personA->velocityMag();
-	float v_b0 = personB->velocityMag();
+	float v_a0 = magnitude(personA->velocity);
+	float v_b0 = magnitude(personB->velocity);
 
-	if(v_a0 * v_a0 < 0.001f ||v_b0 * v_b0 < 0.001f)
+	if (v_a0 * v_a0 < 0.001f || v_b0 * v_b0 < 0.001f)
 	{
 		return make_float2(0.f, 0.f);
 	}
 
-	float2 dir_a = tofloat2(udiff(personA->goal, personA->position));
-	float2 e_a = divide(dir_a, magnitude(dir_a));
+	float2 dir_a = personA->goal - personA->position;
+	float2 e_a = dir_a / magnitude(dir_a);
 
-	float2 dir_b = tofloat2(udiff(personB->goal, personB->position));
-	float2 e_b = divide(dir_b, magnitude(dir_b));
+	float2 dir_b = personB->goal - personB->position;
+	float2 e_b = dir_b / magnitude(dir_b);
 
-	float2 e2 = multiply(epsilon, calculate_ve(v_a0, e_a)) - calculate_ve(v_b0, e_b);
+	float2 e2 = EPSILON * v_a0 * e_a - v_b0 * e_b;
 	e2 = normalize(e2);
 	float2 e1 = make_float2(e2.y, -e2.x);
 
-	const float2 r_ab = tofloat2(udiff(personA->position, personB->position));
+	const float2 r_ab = personA->position - personB->position;
 	float e1_result = dot(r_ab, e1);
 	e1_result *= e1_result;
 	float e2_result = dot(r_ab, e2);
 	e2_result *= e2_result;
 
-	float gamma_a = dot(r_ab, e2) >= 0.f ? theta : 1 + delta * v_a0;
+	float gamma_a = dot(r_ab, e2) >= 0.f ? THETA : 1 + DELTA * v_a0;
 
-	float test = -std::sqrtf(e1_result + e2_result / (gamma_a * gamma_a)) / R;
-	float V_ab = S * std::powf(euler, -std::sqrtf(e1_result + e2_result / (gamma_a * gamma_a)) / R);
-	
+	float V_ab = S * std::powf(EULER, -std::sqrtf(e1_result + e2_result / (gamma_a * gamma_a)) / R);
+
 	float2 f_ab = make_float2(-r_ab.x * V_ab, -r_ab.y * V_ab);
-
-	if(isnan(f_ab.x) || isnan(f_ab.y))
-	{
-		std::cout << "blub";
-	}
-
-	if (debug_level >= 1)
-		std::cout << "F_ab = " << floatToString(f_ab) << "\n";
 
 	return f_ab;
 }
 
-void SF_Sequential::printGrid()
+int SF_Sequential::toIndex(int x, int y)
 {
-	std::cout << "\nCurrent cell populations:\n\n";
-	std::cout << "    0   1   2   3   4   5\n__|_______________________\n";
-	for (int x = 0; x < cellsPerAxis; x++)
-	{
-		std::cout << x << " | ";
-		for (int y = 0; y < cellsPerAxis; y++)
-		{
-			std::cout << getCellPopulation(x * cellsPerAxis + y) << "   ";
-		}
-		std::cout << "\n  |\n";
-	}
-}
-
-bool SF_Sequential::addToGrid(Person* p)
-{
-	int cell = toIndex(p->position.x, p->position.y);
-	bool placed = false;
-
-	for (int i = 0; i < maxOccupation; i++)
-	{
-		int index = cell * maxOccupation + i;
-		if (grid[index].state != FREE)
-			continue;
-
-		grid[index] = *p;
-		placed = true;
-		break;
-	}
-
-	return placed;
+	int cellX = x / CELL_SIZE;
+	int cellY = y / CELL_SIZE;
+	return cellX + cellY * CELLS_PER_AXIS;
 }
 
 bool SF_Sequential::addToGrid(Person p)
@@ -124,364 +103,213 @@ bool SF_Sequential::addToGrid(Person p)
 	int cell = toIndex(p.position.x, p.position.y);
 	bool placed = false;
 
-	for (int i = 0; i < maxOccupation; i++)
+	for (int i = 0; i < MAX_OCCUPATION; i++)
 	{
-		int index = cell * maxOccupation + i;
-		if (grid[index].state != FREE)
+		int index = cell * MAX_OCCUPATION + i;
+
+		if (cells[index].state != FREE)
 			continue;
 
-		grid[index] = p;
+		cells[index] = Person(p);
 		placed = true;
 		break;
 	}
 
+	//if (placed)
+	//	std::cout << "added to cell " << cell << "\n";
+
 	return placed;
 }
 
-float2 SF_Sequential::add_force(Person* p, float2 shortForce)
+void SF_Sequential::host_function()
 {
-	//std::cout << "Force = (" << p->velocity.x << "|" << p->velocity.y << ") - (" << shortForce.x << "|" << shortForce.y << ")\n";
-	//std::cout << "Moving ( " << (p->velocity.x - shortForce.x) * delta << "|" << (p->velocity.y - shortForce.y) * delta << ")\n";
-	float xPos = p->position.x + (p->velocity.x - shortForce.x) * delta;
-	float yPos = p->position.y + (p->velocity.y - shortForce.y) * delta;
-	return make_float2(xPos, yPos);
-}
-
-void SF_Sequential::update_positions()
-{
-	bool printed = false;
-	
-	// Iterate over all cells
-	for (int cell = 0; cell < totalCells; cell++)
+	for (int cellX = 0; cellX < CELLS_PER_AXIS; cellX++)
 	{
-		float2 cellPos = make_float2(cell % cellsPerAxis, cell / cellsPerAxis);
-
-		// Iterate over all spaces in cell | Thread [x]
-		for (int i = 0; i < maxOccupation; i++)
+		for (int cellY = 0; cellY < CELLS_PER_AXIS; cellY++)
 		{
-			if (grid[cell * maxOccupation + i].state == FREE)
-				continue;
+			uint3 pseudoBlockIdx = make_uint3(cellX, cellY, 0);
+			short cellA = SF_Sequential::cellPosToCell(cellX, cellY);
+			int cellPop = getCellPopulation(pseudoBlockIdx);
 
-			if(grid[cell * maxOccupation + i].state == RESERVED || grid[cell * maxOccupation + i].state == TRAVERSING)
+			for (int threadX = 0; threadX <= 32; threadX++)
 			{
-				continue;
-			}
-
-			Person* person = &grid[cell * maxOccupation + i];
-			if (debug_level >= 1)
-				std::cout << "\n\nFound one in cell " << float2ToString(person->position) << "\n";
-
-			float2 forceTemp[9];
-			for (int i = 0; i < 9; i++)
-			{
-				forceTemp[i] = make_float2(0.f, 0.f);
-			}
-
-			// Iterate over neighbor cells | Thread [x][y]
-			for (int y = 0; y <= 2; y++)
-			{
-				// Thread [x][y][z]
-				for (int x = 0; x <= 2; x++)
+				float2 total_force = make_float2(0.f, 0.f);
+				for (int threadY = 0; threadY <= 2; threadY++)
 				{
-					short currX = cellPos.x - 1 + x;
-					short currY = cellPos.y - 1 + y;
-
-					// Skip invalid cells
-					if (currX < 0 || currY < 0 || currX >= cellsPerAxis || currY >= cellsPerAxis) continue;
-
-					int otherCell = cellPosToIndex(currX, currY);
-
-					float2 forceVector = make_float2(0.f, 0.f);
-
-					// Iterate over space in neighbor cell
-					for (int j = 0; j < maxOccupation; j++)
+					for (int threadZ = 0; threadZ <= 2; threadZ++)
 					{
-						// Ignore yourself
-						if (cell * maxOccupation + i == otherCell * maxOccupation + j)
-							continue;
-
-						Person* other = &grid[otherCell * maxOccupation + j];
-
-						if (other->state == FREE)
-							continue;
-
-						if (debug_level >= 1)
-							std::cout << "Found influencer! \n";
-						forceVector = sum(forceVector, calculateSF(person, other));
+						uint3 pseudoThreadIdx = make_uint3(threadX, threadY, threadZ);
+						total_force = total_force + calculateCellForce(cellPop, pseudoBlockIdx, pseudoThreadIdx);
 					}
-					
-					int neighbor = x * 3 + y;
-					//forceVectors[influenced + neighbor] = forceVector;
-					//std::cout << "Force " << neighbor << ": " << forceVector.x << " | " << forceVector.y << "\n";
-					forceTemp[neighbor] = forceVector;
-
-					// When all force vectors for current individual are computed
-					// !!! In CUDA this has to be synchronized first !!!
 				}
+				Person personA = cells[cellA * MAX_OCCUPATION + threadX];
+				update_position(personA, total_force, cellA, threadX);
 			}
+		}
+	}
 
-			float2 totalForce = make_float2(0.f, 0.f);
-			for (int tf = 0; tf < 9; tf++)
-			{
-				float2 curr = forceTemp[tf]; //forceVectors[cell * maxOccupation + i + tf];
-				if (std::abs(curr.x) > 1000 || std::abs(curr.y) > 1000)
-					continue;
+	// CUDA would sync here
 
-				totalForce = sum(totalForce, curr);
-			}
-
-			if(isnan(totalForce.x) || isnan(totalForce.y))
-			{
-				std::cout << "NaN for " << person->position.x << "|" << person->position.y << "\n";
-				return;
-			}
-			
-			if (debug_level >= 2)
-				std::cout << "Total force = " << floatToString(totalForce) << "\n";
-
-			if(debug_level >= 1 && !printed)
-			
-			if(debug_level >= 1 && !printed)
-			{
-				std::cout << "Moved from (" << person->position.x << "|" << person->position.y << ") " << 
-				"to (" << grid[cell * maxOccupation + i].position.x << "|" << grid[cell * maxOccupation + i].position.y << ")\n";
-			}
-			
-			float2 newPos = add_force(person, totalForce);
-			
-			// Check if person moves to other cell
-			int oldCell = toIndex(person->position.x, person->position.y);
-			int newCell = toIndex(newPos.x, newPos.y);
-			
-			bool moveSuccessful = true;
-			
-			if(oldCell != newCell)
-			{
-				moveSuccessful = reserveSpace(person, newCell, newPos);
-				
-				if(moveSuccessful)
-				{
-					person->state = TRAVERSING;
-				}
-			}
-			else
-			{
-				updatePosition(person, newPos);
-				//person->position = newPos;
-			}
+	for (int cellX = 0; cellX < CELLS_PER_AXIS; cellX++)
+	{
+		for (int cellY = 0; cellY < CELLS_PER_AXIS; cellY++)
+		{
+			uint3 pseudoBlockIdx = make_uint3(cellX, cellY, 0);
+			completeMove(pseudoBlockIdx);
 		}
 	}
 }
 
-void SF_Sequential::updatePosition(Person* p, float2 newPos)
+float2 SF_Sequential::calculateCellForce(int cellAPop, uint3 pseudeBlockIdx, uint3 pseudoThreadIdx)
 {
-	//float2 dir = make_float2(newPos.x - p->position.x, newPos.y - p->position.y);
-	p->position = newPos;
+	float2 totalForces[MAX_OCCUPATION][9];
 
-	float2 goalDir = make_float2(
-						p->goal.x - p->position.x, 
-						p->goal.y - p->position.y);
+	short2 cellAPos = make_short2(pseudeBlockIdx.x, pseudeBlockIdx.y);
+	short cellA = SF_Sequential::cellPosToCell(cellAPos);
 
-	if(magnitude(goalDir) < minDist)
+	Person* personA = &cells[cellA * MAX_OCCUPATION + pseudoThreadIdx.x];
+
+	short2 cellBPos = make_short2(cellAPos.x - 1 + pseudoThreadIdx.y, cellAPos.y - 1 + pseudoThreadIdx.z);
+
+	short cellB = SF_Sequential::cellPosToCell(cellBPos);
+	float2 forceVector = make_float2(0.f, 0.f);
+
+	if (!(cellB < 0 || cellB >= CELLS_PER_AXIS * CELLS_PER_AXIS))
 	{
-		p->goal = getRandomPos();
-		goalDir = make_float2(
-			p->goal.x - p->position.x,
-			p->goal.y - p->position.y);
-	}
-	
-	goalDir = normalize(goalDir);
-	p->direction = goalDir;
-	p->velocity = multiply(goalDir, speed);
-}
-
-float2 SF_Sequential::getRandomPos()
-{
-	short x = rand() % (cellSize * cellsPerAxis - safezone) + safezone;
-	short y = rand() % (cellSize * cellsPerAxis - safezone) + safezone;
-	return make_float2(x,y);
-}
-
-void SF_Sequential::debugerino()
-{
-	for(int i = 0; i < totalCells * maxOccupation; i++)
-	{
-		if(grid[i].state != FREE)
+		// People in analyzed cell
+		int blockppl = 0;
+		// Iterate over space in neighbor cell
+		for (int i = 0; i < MAX_OCCUPATION; i++)
 		{
-			std::cout << i << " is " << grid[i].state << "\n";
+			// Ignore yourself
+			if (pseudoThreadIdx.y == 1 && pseudoThreadIdx.z == 1 && pseudoThreadIdx.x % MAX_OCCUPATION == i)
+				continue;
+
+			Person* other = &cells[cellB * MAX_OCCUPATION + i];
+
+			if (other->state == FREE)
+				continue;
+
+			forceVector = forceVector + calculateSF(personA, other);
+			blockppl++;
+		}
+
+		// People in main/influenced cell
+		int ppl = cellAPop;
+
+		if ((pseudoThreadIdx.y != 1 || pseudoThreadIdx.z != 1) && (blockppl > 20 || ppl > 26))
+		{
+			forceVector.x -= (pseudoThreadIdx.y - 1) * (blockppl - 20) * AVOIDANCE_FORCE;
+			forceVector.y -= (pseudoThreadIdx.z - 1) * (blockppl - 20) * AVOIDANCE_FORCE;
+		}
+	}
+
+	return forceVector;
+}
+
+void SF_Sequential::update_position(Person personA, float2 total_force, int cellIndex, int threadX)
+{
+	personA.velocity = make_float2(personA.velocity.x - total_force.x, personA.velocity.y - total_force.y);
+
+	float2 newPos = personA.position + personA.velocity * DELTA;
+
+	// Check if person moves to other cell
+	int oldCell = SF_Sequential::posToCell(personA.position.x, personA.position.y);
+	int newCell = SF_Sequential::posToCell(newPos.x, newPos.y);
+
+	if (oldCell != newCell)
+	{
+		bool cellChanged = false;
+		//bool moveSuccessful = reserveSpace(device_grid, newCell, cellA * MAX_OCCUPATION + threadIdx.x);
+
+		// Look for space in new cell
+		for (int i = newCell * MAX_OCCUPATION; i < (newCell + 1) * MAX_OCCUPATION; i++)
+		{
+			//if (atomicCAS(&device_grid[i].state, FREE, RESERVED) == FREE)
+			if (cells[i].state == FREE)
+			{
+				cells[i].state = RESERVED;
+
+				cells[cellIndex * MAX_OCCUPATION + threadX].state = LEAVING;
+
+				cells[i] = Person(cells[cellIndex * MAX_OCCUPATION + threadX]);
+				cells[i].state = RESERVED;
+
+				cellChanged = true;
+				break;
+			}
+		}
+
+		if (!cellChanged)
+		{
+			personA.velocity = make_float2(0.f, 0.f);
 		}
 	}
 }
 
-void SF_Sequential::completeTraversal()
+void SF_Sequential::completeMove(uint3 pseudoBlockIdx)
 {
-	// Iterate over all cells
-	for (int cell = 0; cell < totalCells; cell++)
+	short2 cellAPos = make_short2(pseudoBlockIdx.x, pseudoBlockIdx.y);
+	short cellA = SF_Sequential::cellPosToCell(cellAPos);
+
+	for (int i = 0; i < MAX_OCCUPATION; i++)
 	{
-		// Iterate over all spaces in cell | Thread [x]
-		for (int i = 0; i < maxOccupation; i++)
+		Person* personA = &cells[cellA * MAX_OCCUPATION + i];
+
+		if (personA->state == FREE)
+			continue;
+
+		if (personA->state == LEAVING)
 		{
-			short state = grid[cell * maxOccupation + i].state;
-
-			//if(state != OCCUPIED && state != FREE) std::cout << "updating " << cell * maxOccupation + i << " from " << state << " to ";
-
-			if(state == TRAVERSING)
-			{
-				grid[cell * maxOccupation + i].state = FREE;
-			}
-			else if(state == RESERVED)
-			{
-				grid[cell * maxOccupation + i].state = OCCUPIED;
-			}
-			
-			//if (state != OCCUPIED && state != FREE) std::cout << grid[cell * maxOccupation + i].state << "\n";
-		}
-	}
-}
-
-bool SF_Sequential::reserveSpace(Person* p, int cell, float2 newPos)
-{
-	bool foundSpace = false;
-	
-	for(int i = 0; i < maxOccupation; i++)
-	{
-		int index = cell * maxOccupation + i;
-		if (grid[index].state != FREE)
-		{
+			personA->state = FREE;
+			personA->velocity = make_float2(0.f, 0.f);
 			continue;
 		}
 
-		//p->position = newPos;
-		updatePosition(p, newPos);
-		grid[index] = Person(p);
-		foundSpace = true;
-		break;
-	}
-	
-	return foundSpace;
-}
+		if (personA->state == RESERVED)
+		{
+			personA->state = OCCUPIED;
+		}
 
-int SF_Sequential::getCellIndex(int x, int y)
-{
-	return y / cellSize * cellsPerAxis + x / cellSize;
-}
+		personA->position = personA->position + personA->velocity * DELTA;
 
-int SF_Sequential::toIndex(int x, int y)
-{
-	int cellX = x / cellSize;
-	int cellY = y / cellSize;
-	return cellX + cellY * cellsPerAxis;
-}
+		float2 goalDir = make_float2(
+			personA->goal.x - personA->position.x,
+			personA->goal.y - personA->position.y);
 
-Person* SF_Sequential::init_test1(float newDelta)
-{
-	for (Person& i : grid)
-	{
-		i = Person();
-	}
-
-	addToGrid(Person(make_float2(2, 2), make_float2(3, 13)));
-	addToGrid(Person(make_float2(3, 1), make_float2(8, 1)));
-	addToGrid(Person(make_float2(14, 6), make_float2(6, 9)));
-	addToGrid(Person(make_float2(18, 11), make_float2(10, 6)));
-	addToGrid(Person(make_float2(7, 12), make_float2(13, 12)));
-	addToGrid(Person(make_float2(5, 14), make_float2(14, 11)));
-	addToGrid(Person(make_float2(17, 21), make_float2(7, 7)));
-
-	printGrid();
-
-	delta = newDelta;
-
-	return grid;
-}
-
-Person* SF_Sequential::init_test2(float newDelta)
-{
-	for (Person& i : grid)
-	{
-		i = Person();
-	}
-
-	addToGrid(Person(make_float2(1, 9), make_float2(10, 9)));
-	addToGrid(Person(make_float2(10, 10), make_float2(1, 10)));
-
-	printGrid();
-
-	delta = newDelta;
-
-	return grid;
-}
-
-Person* SF_Sequential::init_test3(float newDelta)
-{
-	for (Person& i : grid)
-	{
-		i = Person();
-	}
-
-	/*
-	for(int cell = cellsPerAxis; cell < totalCells - cellsPerAxis; cell += 3)
-	{
-		int cellX = cell % cellsPerAxis;
-		int cellY = cell / cellsPerAxis;
-		
-		float x = rand() % 4 + cellX * 4;
-		float y = rand() % 4 + cellY * 4;
-
-		addToGrid(Person(make_float2(x, y), make_float2(0.f, 0.f)));
-	}
-
-	for(int cell = 5; cell < 15; cell++)
-	{
-		int cellX = 15 % cellsPerAxis;
-		int cellY = 15 / cellsPerAxis;
-
-		float x = rand() % 4 + cellX * 4;
-		float y = rand() % 4 + cellY * 4;
-
-		addToGrid(Person(make_float2(x, y), getRandomPos()));
-	}
-
-	printGrid();
-
-	delta = newDelta;
-
-	return grid;
-}
-
-void SF_Sequential::simulate(int steps)
-{
-	for (int i = 0; i < steps; i++)
-	{
-		update_positions();
-		completeTraversal();
-	}
-}
-
-void SF_Sequential::hard_reset()
-{
-	for(int i = 0; i < totalCells * maxOccupation; i++)
-	{
-		grid[i] = Person();
+		if (magnitude(goalDir) < MIN_DIST)
+		{
+			personA->goal = personA->position; //make_float2(0.f, 0.f); //getRandomPos();
+			personA->velocity = make_float2(0.f, 0.f);
+			personA->direction = make_float2(0.f, 0.f);
+		}
+		else
+		{
+			goalDir = normalize(goalDir);
+			personA->direction = goalDir;
+			personA->velocity = goalDir * SPEED;
+		}
 	}
 }
 
 std::vector<PersonVisuals> SF_Sequential::convertToVisual(bool debugPrint)
 {
 	std::vector<PersonVisuals> persons;
-	if(debugPrint)
-		std::cout << " Starting conversion \n";
+	int addedActors = 0;
 
-	for (auto p : grid)
+	for (int i = 0; i < TOTAL_SPACES; i++)
 	{
+		Person& p = cells[i];
 		if (p.state != FREE)
 		{
-			PersonVisuals pv;
-			pv.position = simToGL(p.position);
-			if(debugPrint)
-				std::cout << "Position: " << pv.position.x << " | " << pv.position.y << "\n";
-			pv.direction = p.direction;
-			persons.push_back(pv);
+			float2 dir = p.direction;
+			dir.y = -dir.y;
+			persons.push_back(PersonVisuals(simToGL(p.position), dir));
+
+			if (++addedActors >= DRAWN_ACTORS)
+			{
+				break;
+			}
 		}
 	}
 
@@ -490,10 +318,9 @@ std::vector<PersonVisuals> SF_Sequential::convertToVisual(bool debugPrint)
 
 float2 SF_Sequential::simToGL(float2 pos)
 {
-	float maxVal = cellsPerAxis * cellSize;
+	float maxVal = CELLS_PER_AXIS * CELL_SIZE;
 	float xPos = pos.x / maxVal * 2.f - 1.f;
 	float yPos = (pos.y / maxVal * 2.f - 1.f) * -1.f;
 
 	return make_float2(xPos, yPos);
 }
-*/

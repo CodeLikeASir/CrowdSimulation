@@ -8,6 +8,7 @@
 
 #include "SF_CUDA.cuh"
 #include "SF_Sequential.h"
+#include <chrono>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -15,10 +16,11 @@ void processInput(GLFWwindow *window);
 //SF_Sequential sf;
 
 float vertices[SPAWNED_ACTORS * 9]; //SPAWNED_ACTORS * 9
-const float FPS = 25.f;
-int maxIterations = 10000;
+int maxIterations = 1000;
 
 const float size = 0.008f;
+
+SF_Sequential sequential;
 
 // settings
 const unsigned int SCR_WIDTH = 1440;
@@ -35,7 +37,7 @@ const GLchar* fragmentShaderSource = "#version 330 core\n"
 "out vec4 color;\n"
 "void main()\n"
 "{\n"
-"color = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
+"color = vec4(0.5f, 0.3f, 0.2f, 1.0f);\n"
 "}\n\0";
 
 bool construct_triangle(GLfloat* triangle, float2 pos, float2 dir)
@@ -98,9 +100,8 @@ void printPositions(GLfloat* vertices, int size)
     }
 }
 
-bool updateVisuals(bool debugPrint)
+bool updateVisuals(std::vector<PersonVisuals> pv)
 {
-    std::vector<PersonVisuals> pv = convertToVisual(debugPrint);
 	bool drewTri = false;
 	
     for (int i = 0; i < pv.size(); i++)
@@ -121,17 +122,31 @@ bool updateVisuals(bool debugPrint)
 	return true;
 }
 
-bool updateSimulation()
+bool updateSimulationCUDA()
 {
     simulate();
-    if(!updateVisuals(false))
+    if(!updateVisuals(convertToVisual(false)))
 		return false;
 
 	return true;
 }
 
+bool updateSimulationSequential()
+{
+    sequential.host_function();
+    if (!updateVisuals(sequential.convertToVisual(false)))
+        return false;
+
+    return true;
+}
+
 int main()
 {
+	double minTime = 1000.f;
+	double maxTime = 0.f;
+	double totalTime = 0.f;
+	int sampleCount = 0;
+	
     // glfw: initialize and configure
     // ------------------------------
     glfwInit();
@@ -190,9 +205,13 @@ int main()
     glGenBuffers(1, &VBO);
 
 	//TODO: Change init here!
+	// CUDA
 	//init();
 	initTest();
-	updateVisuals(false);
+	updateVisuals(convertToVisual(false));
+	
+	// Sequential
+	sequential.init();
 
     glBindBuffer(GL_ARRAY_BUFFER, 0); // Note that this is allowed, the call to glVertexAttribPointer registered VBO as the currently bound vertex buffer object so afterwards we can safely unbind
     glBindVertexArray(0); // Unbind VAO (it's always a good thing to unbind any buffer/array to prevent strange bugs)
@@ -235,14 +254,33 @@ int main()
 
     	Sleep(1000.f / FPS);
         
-        if(!updateSimulation())
-			break;
+        auto t1 = std::chrono::high_resolution_clock::now();
 
+        //if (!updateSimulationCUDA())
+        //    break;
+        updateSimulationCUDA();
+    	//updateSimulationSequential();
+    	
+        auto t2 = std::chrono::high_resolution_clock::now();
+
+        // Getting number of milliseconds as a double.
+        std::chrono::duration<double, std::milli> ms_double = t2 - t1;
+        
+        std::cout << "Time:" << ms_double.count() << "ms\n";
+
+    	minTime = ms_double.count() < minTime ? ms_double.count() : minTime;
+        maxTime = ms_double.count() > maxTime ? ms_double.count() : maxTime;
+    	totalTime += ms_double.count();
+    	sampleCount++;
+    	
     	if(--maxIterations <= 0)
     	{
+    		std::cout << "Reached max iterations.\n";
     		break;
     	}
     }
+
+	std::cout << "Min: " << minTime << " | Max: " << maxTime << "| Avg: " << (totalTime / sampleCount) << "\n";
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------
@@ -264,7 +302,7 @@ void processInput(GLFWwindow *window)
 
 	if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS && !simProcessed)
 	{
-        updateSimulation();
+        updateSimulationCUDA();
 		simProcessed = true;
 		//printGrid();
 	}
