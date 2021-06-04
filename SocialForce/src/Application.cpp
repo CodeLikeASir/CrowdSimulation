@@ -16,9 +16,9 @@ void processInput(GLFWwindow *window);
 //SF_Sequential sf;
 
 float vertices[SPAWNED_ACTORS * 9]; //SPAWNED_ACTORS * 9
-int maxIterations = 1000;
 
-const float size = 0.008f;
+const float size = 0.005f;
+bool shouldClose = false;
 
 SF_Sequential sequential;
 
@@ -122,13 +122,9 @@ bool updateVisuals(std::vector<PersonVisuals> pv)
 	return true;
 }
 
-bool updateSimulationCUDA()
+void updateSimulationCUDA()
 {
     simulate();
-    if(!updateVisuals(convertToVisual(false)))
-		return false;
-
-	return true;
 }
 
 bool updateSimulationSequential()
@@ -206,12 +202,12 @@ int main()
 
 	//TODO: Change init here!
 	// CUDA
-	//init();
-	initTest();
+	init();
+	//initTest();
 	updateVisuals(convertToVisual(false));
 	
 	// Sequential
-	sequential.init();
+	//sequential.init();
 
     glBindBuffer(GL_ARRAY_BUFFER, 0); // Note that this is allowed, the call to glVertexAttribPointer registered VBO as the currently bound vertex buffer object so afterwards we can safely unbind
     glBindVertexArray(0); // Unbind VAO (it's always a good thing to unbind any buffer/array to prevent strange bugs)
@@ -228,8 +224,9 @@ int main()
 	
     // render loop
     // -----------
-    while (!glfwWindowShouldClose(window))
+    while (!glfwWindowShouldClose(window) && !shouldClose)
     {
+        auto updateStart = std::chrono::high_resolution_clock::now();
         // input
         // -----
         processInput(window);
@@ -251,8 +248,6 @@ int main()
         // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
         glfwPollEvents();
-
-    	Sleep(1000.f / FPS);
         
         auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -272,12 +267,15 @@ int main()
         maxTime = ms_double.count() > maxTime ? ms_double.count() : maxTime;
     	totalTime += ms_double.count();
     	sampleCount++;
-    	
-    	if(--maxIterations <= 0)
-    	{
-    		std::cout << "Reached max iterations.\n";
-    		break;
-    	}
+
+        updateVisuals(convertToVisual(false));
+        
+        auto updateEnd = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> update_time = t2 - t1;
+    	float remainingTime = (1000.f / FPS) - update_time.count();
+
+    	if(remainingTime > 0.f)
+			Sleep(remainingTime);
     }
 
 	std::cout << "Min: " << minTime << " | Max: " << maxTime << "| Avg: " << (totalTime / sampleCount) << "\n";
@@ -296,7 +294,8 @@ void processInput(GLFWwindow *window)
 {
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     {
-    	close();
+    	//close();
+    	shouldClose = true;
         glfwSetWindowShouldClose(window, true);
     }
 

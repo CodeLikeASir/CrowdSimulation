@@ -72,6 +72,8 @@ __global__ void calculateCellForce(Person* device_grid, int* debugVal)
 	short cellA = cellPosToCell(cellAPos);
 
 	Person* personA = &device_grid[cellA * MAX_OCCUPATION + threadIdx.x];
+	if(personA->state == FREE)
+		return;
 
 	short2 cellBPos = make_short2(cellAPos.x - 1 + threadIdx.y, cellAPos.y - 1 + threadIdx.z);
 
@@ -333,8 +335,8 @@ void initTest()
 void close()
 {
 	// Free memory
-	delete[] cells;
-	delete debugHost;
+	//free(cells);
+	//delete debugHost;
 
 	cudaFree(deviceCells);
 	cudaFree(debugDevice);
