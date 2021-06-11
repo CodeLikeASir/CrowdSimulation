@@ -1,0 +1,9 @@
+﻿  SF_Sequential.cpp
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_Sequential.cpp(35,20): warning C4244: "Initialisierung": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_Sequential.cpp(36,17): warning C4244: "Initialisierung": Konvertierung von "int" in "float", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_Sequential.cpp(99,12): warning C4244: "Initialisierung": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_Sequential.cpp(212,63): warning C4244: "Argument": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_Sequential.cpp(212,43): warning C4244: "Argument": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_Sequential.cpp(213,43): warning C4244: "Argument": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\src\SF_Sequential.cpp(213,33): warning C4244: "Argument": Konvertierung von "float" in "int", möglicher Datenverlust
+  SocialForce.vcxproj -> C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\x64\Debug\SocialForce.exe

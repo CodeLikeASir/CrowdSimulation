@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="src\SF_CUDA.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\Application.cpp" />
+    <ClCompile Include="ExternalResources\GLAD\glad.c" />
+    <ClCompile Include="src\SF_Sequential.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\SF_Sequential.h" />
+    <ClInclude Include="src\SF_CUDA.cuh" />
+    <ClInclude Include="src\Person.h" />
+    <ClInclude Include="src\Math_Helper.cuh" />
+    <ClInclude Include="src\Macros.h" />
+  </ItemGroup>
+</Project>
