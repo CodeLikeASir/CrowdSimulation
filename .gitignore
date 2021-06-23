@@ -31,3 +31,13 @@
 *.out
 *.app
 *.db
+
+# Other
+*.exp
+*.log
+*.tlog
+
+# Folders / Directories
+.vs/
+x64/
+

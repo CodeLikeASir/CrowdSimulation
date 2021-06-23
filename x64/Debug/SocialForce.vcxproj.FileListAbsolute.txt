@@ -1,2 +1,3 @@
 C:\Users\Jan\source\repos\SocialForce\x64\Debug\SocialForce.exe
 C:\Users\Jan\Documents\GitHub\CrowdSimulation\SocialForce\x64\Debug\SocialForce.exe
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\x64\Debug\SocialForce.exe

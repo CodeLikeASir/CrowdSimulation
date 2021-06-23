@@ -1,6 +1,10 @@
 // ReSharper disable CppLocalVariableMayBeConst
 #include "SF_Sequential.h"
 
+#include <iostream>
+
+#include "PersonStructs.h"
+
 namespace SF_Sequential
 {
 	static Person* cells;
@@ -85,13 +89,6 @@ namespace SF_Sequential
 		return f_ab;
 	}
 
-	int toIndex(int x, int y)
-	{
-		int cellX = x / CELL_SIZE;
-		int cellY = y / CELL_SIZE;
-		return cellX + cellY * CELLS_PER_AXIS;
-	}
-
 	void add_to_grid(const Person& p)
 	{
 		float2 cell_coords = p.position / CELL_SIZE;
@@ -115,10 +112,13 @@ namespace SF_Sequential
 		{
 			for (int cellY = 0; cellY < CELLS_PER_AXIS; cellY++)
 			{
-				uint3 pseudoBlockIdx = make_uint3(cellX, cellY, 0);
-				short cellA = cellPosToCell(cellX, cellY);
-				int cellPop = getCellPopulation(pseudoBlockIdx);
+				// pBlockIdx simulates behavior of CUDA blockIdx
+				uint3 pBlockIdx = make_uint3(cellX, cellY, 0);
+				
+				short cellA = cellPosToIndex(cellX, cellY);
+				int cellPop = getCellPopulation(pBlockIdx);
 
+				// threadX/Y/Z and pThreadIdx simulate behavior of CUDA threadIdx
 				for (int threadX = 0; threadX <= 32; threadX++)
 				{
 					Person* personA = &cells[cellA * MAX_OCCUPATION + threadX];
@@ -130,8 +130,8 @@ namespace SF_Sequential
 					{
 						for (int threadZ = 0; threadZ <= 2; threadZ++)
 						{
-							uint3 pseudoThreadIdx = make_uint3(threadX, threadY, threadZ);
-							total_force = total_force + calculateCellForce(cellPop, pseudoBlockIdx, pseudoThreadIdx);
+							uint3 pThreadIdx = make_uint3(threadX, threadY, threadZ);
+							total_force = total_force + calculateCellForce(cellPop, pBlockIdx, pThreadIdx);
 						}
 					}
 
@@ -140,39 +140,39 @@ namespace SF_Sequential
 			}
 		}
 
-		// CUDA would sync here
-
+		// 2nd CUDA kernel starts here
 		for (int cellX = 0; cellX < CELLS_PER_AXIS; cellX++)
 		{
 			for (int cellY = 0; cellY < CELLS_PER_AXIS; cellY++)
 			{
-				uint3 pseudoBlockIdx = make_uint3(cellX, cellY, 0);
-				completeMove(pseudoBlockIdx);
+				uint3 pBlockIdx = make_uint3(cellX, cellY, 0);
+				completeMove(pBlockIdx);
 			}
 		}
 	}
 
-	float2 calculateCellForce(int cellAPop, uint3 pseudeBlockIdx, uint3 pseudoThreadIdx)
+	float2 calculateCellForce(int cellAPop, uint3 pBlockIdx, uint3 pThreadIdx)
 	{
-		short2 cellAPos = make_short2(pseudeBlockIdx.x, pseudeBlockIdx.y);
-		short cellA = cellPosToCell(cellAPos);
+		short2 cellAPos = make_short2(pBlockIdx.x, pBlockIdx.y);
+		short cellA = cellPosToIndex(cellAPos);
 
-		Person* personA = &cells[cellA * MAX_OCCUPATION + pseudoThreadIdx.x];
+		Person* personA = &cells[cellA * MAX_OCCUPATION + pThreadIdx.x];
 
-		short2 cellBPos = make_short2(cellAPos.x - 1 + pseudoThreadIdx.y, cellAPos.y - 1 + pseudoThreadIdx.z);
+		short2 cellBPos = make_short2(cellAPos.x - 1 + pThreadIdx.y, cellAPos.y - 1 + pThreadIdx.z);
 
-		short cellB = cellPosToCell(cellBPos);
+		short cellB = cellPosToIndex(cellBPos);
 		float2 forceVector = make_float2(0.f, 0.f);
 
 		if (!(cellB < 0 || cellB >= CELLS_PER_AXIS * CELLS_PER_AXIS))
 		{
 			// People in analyzed cell
 			int blockppl = 0;
-			// Iterate over space in neighbor cell
+			
+			// Iterate over spaces in neighbor cell
 			for (int i = 0; i < MAX_OCCUPATION; i++)
 			{
 				// Ignore yourself
-				if (pseudoThreadIdx.y == 1 && pseudoThreadIdx.z == 1 && pseudoThreadIdx.x % MAX_OCCUPATION == i)
+				if (pThreadIdx.y == 1 && pThreadIdx.z == 1 && pThreadIdx.x % MAX_OCCUPATION == i)
 					continue;
 
 				Person* other = &cells[cellB * MAX_OCCUPATION + i];
@@ -187,10 +187,10 @@ namespace SF_Sequential
 			// People in main/influenced cell
 			int ppl = cellAPop;
 
-			if ((pseudoThreadIdx.y != 1 || pseudoThreadIdx.z != 1) && (blockppl > 20 || ppl > 26))
+			if ((pThreadIdx.y != 1 || pThreadIdx.z != 1) && (blockppl > 20 || ppl > 26))
 			{
-				forceVector.x -= (pseudoThreadIdx.y - 1) * (blockppl - 20) * AVOIDANCE_FORCE;
-				forceVector.y -= (pseudoThreadIdx.z - 1) * (blockppl - 20) * AVOIDANCE_FORCE;
+				forceVector.x -= (pThreadIdx.y - 1) * (blockppl - 20) * AVOIDANCE_FORCE;
+				forceVector.y -= (pThreadIdx.z - 1) * (blockppl - 20) * AVOIDANCE_FORCE;
 			}
 		}
 
@@ -208,8 +208,8 @@ namespace SF_Sequential
 		float2 newPos = personA.position + personA.velocity * DELTA;
 
 		// Check if person moves to other cell
-		int oldCell = posToCell(personA.position.x, personA.position.y);
-		int newCell = posToCell(newPos.x, newPos.y);
+		int oldCell = personPosToCellIndex(personA.position.x, personA.position.y);
+		int newCell = personPosToCellIndex(newPos.x, newPos.y);
 
 		if (oldCell != newCell)
 		{
@@ -239,10 +239,10 @@ namespace SF_Sequential
 		}
 	}
 
-	void completeMove(uint3 pseudoBlockIdx)
+	void completeMove(uint3 pBlockIdx)
 	{
-		short2 cellAPos = make_short2(pseudoBlockIdx.x, pseudoBlockIdx.y);
-		short cellA = cellPosToCell(cellAPos);
+		short2 cellAPos = make_short2(pBlockIdx.x, pBlockIdx.y);
+		short cellA = cellPosToIndex(cellAPos);
 
 		for (int i = 0; i < MAX_OCCUPATION; i++)
 		{
@@ -284,10 +284,10 @@ namespace SF_Sequential
 		}
 	}
 
-	std::vector<PersonVisuals> convertToVisual(bool debugPrint)
+	std::vector<PersonVisuals> convertToVisual()
 	{
 		std::vector<PersonVisuals> persons;
-		int addedActors = 0;
+		int remainingDraws = DRAWN_ACTORS > 0 ? DRAWN_ACTORS : SPAWNED_ACTORS;
 
 		for (int i = 0; i < TOTAL_SPACES; i++)
 		{
@@ -296,21 +296,12 @@ namespace SF_Sequential
 			{
 				float2 dir = p.direction;
 				dir.y = -dir.y;
-				persons.emplace_back(simToGL(p.position), dir);
+				persons.emplace_back(simCoordToGL(p.position), dir);
 
-				if (++addedActors >= DRAWN_ACTORS) break;
+				if (--remainingDraws <= 0) break;
 			}
 		}
 
 		return persons;
-	}
-
-	float2 simToGL(float2 pos)
-	{
-		float maxVal = CELLS_PER_AXIS * CELL_SIZE;
-		float xPos = pos.x / maxVal * 2.f - 1.f;
-		float yPos = (pos.y / maxVal * 2.f - 1.f) * -1.f;
-
-		return make_float2(xPos, yPos);
 	}
 }

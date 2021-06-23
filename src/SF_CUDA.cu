@@ -1,37 +1,24 @@
 ﻿#include "SF_CUDA.cuh"
+
+#include <iostream>
+
 #include "Math_Helper.cuh"
 
 namespace SF_CUDA
 {
-
 	// Host variables
 	Person* cells;
 
 	// Device variables
 	Person* deviceCells;
-	int* debugDevice;
-	int* debugHost;
 
-	// 1 block = 1 cell
+	// 1 (thread) block = 1 cell
 	dim3 blocksPerGrid(CELLS_PER_AXIS, CELLS_PER_AXIS, 1);
 
-	// 32 Threads per block/cell, 3x3 for main cell + neighbors
+	// Per cell: 1 thread per space,
+	// Per space: 9 threads, 1 for each influencing cell
 	dim3 threadsPerBlock(MAX_OCCUPATION, 3, 3);
-
-	// function to add the elements of two arrays
-	__global__ void debug(Person* grid_ptr, int* debugVal)
-	{
-		for (int i = 0; i < SPAWNED_ACTORS; i++)
-		{
-			grid_ptr[i].state = 2;
-		}
-
-		//atomicAdd(debugVal, 1);
-		atomicMax(debugVal, blockIdx.x * 10 + blockIdx.y);
-
-		//grid_ptr[0].velocity = calculateSF(&grid_ptr[0], &grid_ptr[1]);
-	}
-
+	
 	__device__ float2 calculateSF(Person* personA, Person* personB)
 	{
 		float v_a0 = magnitude(personA->velocity);
@@ -67,26 +54,31 @@ namespace SF_CUDA
 		return f_ab;
 	}
 
-	__global__ void calculateCellForce(Person* device_grid, int* debugVal)
+	__global__ void calculateCellForce(Person* device_grid)
 	{
+		// Saves forces of each cell on influenced person
 		__shared__ float2 totalForces[MAX_OCCUPATION][9];
 
 		short2 cellAPos = make_short2(blockIdx.x, blockIdx.y);
-		int cellA = cellPosToCell(cellAPos);
+		int cellA = cellPosToIndex(cellAPos);
 
+		// Influenced person/space
 		Person* personA = &device_grid[cellA * MAX_OCCUPATION + threadIdx.x];
+
+		// If space is empty, thread can terminate early
 		if (personA->state == FREE)
 			return;
 
 		short2 cellBPos = make_short2(cellAPos.x - 1 + threadIdx.y, cellAPos.y - 1 + threadIdx.z);
 
-		int cellB = cellPosToCell(cellBPos);
+		int cellB = cellPosToIndex(cellBPos);
 		float2 forceVector = make_float2(0.f, 0.f);
 
 		if (!(cellB < 0 || cellB >= CELLS_PER_AXIS * CELLS_PER_AXIS))
 		{
-			// People in analyzed cell
+			// Number of people in influencing cell, important for congestion avoidance
 			int blockppl = 0;
+			
 			// Iterate over space in neighbor cell
 			for (int i = 0; i < MAX_OCCUPATION; i++)
 			{
@@ -103,9 +95,10 @@ namespace SF_CUDA
 				blockppl++;
 			}
 
-			// People in main/influenced cell
-			int ppl = maskToInt(__ballot_sync(0xFFFFFFFF, personA->state == OCCUPIED));
+			// Number of people in influenced cell
+			int ppl = mask_to_int(__ballot_sync(0xFFFFFFFF, personA->state == OCCUPIED));
 
+			// Only calculate avoidance force if influencing cell =/= influenced cell
 			if ((threadIdx.y != 1 || threadIdx.z != 1) && (blockppl > 20 || ppl > 26))
 			{
 				forceVector.x -= (threadIdx.y - 1) * (blockppl - 20) * AVOIDANCE_FORCE;
@@ -113,10 +106,13 @@ namespace SF_CUDA
 			}
 		}
 
+		// Save calculated force in shared memory
 		totalForces[threadIdx.x][threadIdx.y + threadIdx.z * 3] = forceVector;
 
+		// Wait for all threads to complete calculation
 		__syncthreads();
 
+		// Only center cell sums and applies all social forces
 		if (threadIdx.y == 1 && threadIdx.z == 1)
 		{
 			float2 resultForce = make_float2(0.f, 0.f);
@@ -133,13 +129,12 @@ namespace SF_CUDA
 			float2 newPos = personA->position + personA->velocity * DELTA;
 
 			// Check if person moves to other cell
-			int oldCell = posToCell(personA->position.x, personA->position.y);
-			int newCell = posToCell(newPos.x, newPos.y);
+			int oldCell = personPosToCellIndex(personA->position.x, personA->position.y);
+			int newCell = personPosToCellIndex(newPos.x, newPos.y);
 
 			if (oldCell != newCell)
 			{
 				bool cellChanged = false;
-				//bool moveSuccessful = reserveSpace(device_grid, newCell, cellA * MAX_OCCUPATION + threadIdx.x);
 
 				// Look for space in new cell
 				for (int i = newCell * MAX_OCCUPATION; i < (newCell + 1) * MAX_OCCUPATION; i++)
@@ -156,6 +151,7 @@ namespace SF_CUDA
 					}
 				}
 
+				// If entry to other cell was denied, block movement
 				if (!cellChanged)
 				{
 					personA->velocity = make_float2(0.f, 0.f);
@@ -164,40 +160,44 @@ namespace SF_CUDA
 		}
 	}
 
-	__global__ void completeMove(Person* device_grid, int* debugVal)
+	__global__ void completeMove(Person* device_grid)
 	{
-		int cell = cellPosToCell(blockIdx.x, blockIdx.y);
+		int cell = cellPosToIndex(blockIdx.x, blockIdx.y);
 		Person* person = &device_grid[cell * MAX_OCCUPATION + threadIdx.x];
 
+		// Terminate early if space is empty
 		if (person->state == FREE)
 			return;
 
+		// Mark space as FREE again and terminate
 		if (person->state == LEAVING)
 		{
 			person->state = FREE;
-			person->velocity = make_float2(0.f, 0.f);
 			return;
 		}
 
+		// If person moved to other cell, mark space as OCCUPIED
 		if (person->state == RESERVED)
 		{
 			person->state = OCCUPIED;
 		}
 
-		atomicAdd(debugVal, 1);
-
+		// Update position
 		person->position = person->position + person->velocity * DELTA;
 
+		// Update direction to goal
 		float2 goalDir = make_float2(
 			person->goal.x - person->position.x,
 			person->goal.y - person->position.y);
 
+		// If close enough to goal, stop moving
 		if (magnitude(goalDir) < MIN_DIST)
 		{
 			person->goal = person->position;
 			person->velocity = make_float2(0.f, 0.f);
 			person->direction = make_float2(0.f, 0.f);
 		}
+		// Otherwise update move direction and velocity
 		else
 		{
 			goalDir = normalize(goalDir);
@@ -206,17 +206,11 @@ namespace SF_CUDA
 		}
 	}
 
-	__device__ int posToCell(int x, int y)
-	{
-		int cellX = x / CELL_SIZE;
-		int cellY = y / CELL_SIZE;
-		return cellX + cellY * CELLS_PER_AXIS;
-	}
-
 	void add_to_grid(const Person& p)
 	{
-		float2 cell_coords = p.position / CELL_SIZE;
-		int cell = cell_coords.x + cell_coords.y * CELLS_PER_AXIS;
+		int cell = cellPosToIndex(p.position / CELL_SIZE);
+		
+		//cell_coords.x + cell_coords.y * CELLS_PER_AXIS;
 
 		for (int i = 0; i < MAX_OCCUPATION; i++)
 		{
@@ -256,53 +250,33 @@ namespace SF_CUDA
 			}
 		}
 
-	endspawn:
+		endspawn:
 		std::cout << "Spawned " << totallySpawned << " people.\n";
 		
 		cudaMalloc((void**)&deviceCells, TOTAL_SPACES * sizeof(Person));
 		cudaMemcpy(deviceCells, cells, TOTAL_SPACES * sizeof(Person), cudaMemcpyHostToDevice);
-
-		int temp = 0;
-		debugHost = &temp;
-
-		debugDevice = nullptr;
-		cudaMalloc((void**)&debugDevice, sizeof(int));
-		cudaMemcpy(debugDevice, debugHost, sizeof(int), cudaMemcpyHostToDevice);
-	}
-
-	void close()
-	{
-		// Free memory
-		//free(cells);
-		//delete debugHost;
-
-		cudaFree(deviceCells);
-		cudaFree(debugDevice);
 	}
 
 	void simulate()
 	{
-		*debugHost = 0;
-		cudaMemcpy(debugDevice, debugHost, sizeof(int), cudaMemcpyHostToDevice);
-		calculateCellForce << < blocksPerGrid, threadsPerBlock >> > (deviceCells, debugDevice);
-		cudaDeviceSynchronize();
-		auto error = cudaDeviceSynchronize();
+		calculateCellForce << < blocksPerGrid, threadsPerBlock >> > (deviceCells);
+		
+		cudaError_t error = cudaDeviceSynchronize();
 		if (error)
 		{
 			std::cout << cudaGetErrorName << ": " << cudaGetErrorString(error) << "\n";
 		}
 
-		completeMove << < blocksPerGrid, MAX_OCCUPATION >> > (deviceCells, debugDevice);
+		completeMove << < blocksPerGrid, MAX_OCCUPATION >> > (deviceCells);
 		cudaDeviceSynchronize();
 
 		cudaMemcpy(cells, deviceCells, TOTAL_SPACES * sizeof(Person), cudaMemcpyDeviceToHost);
-		cudaMemcpy(debugHost, debugDevice, sizeof(int), cudaMemcpyDeviceToHost);
 	}
 
-	std::vector<PersonVisuals> convertToVisual(bool debugPrint)
+	std::vector<PersonVisuals> convertToVisual()
 	{
 		std::vector<PersonVisuals> persons;
-		int addedActors = 0;
+		int remainingDraws = DRAWN_ACTORS > 0 ? DRAWN_ACTORS : SPAWNED_ACTORS;
 
 		for (int i = 0; i < TOTAL_SPACES; i++)
 		{
@@ -311,24 +285,12 @@ namespace SF_CUDA
 			{
 				float2 dir = p.direction;
 				dir.y = -dir.y;
-				persons.push_back(PersonVisuals(simToGL(p.position), dir));
+				persons.push_back(PersonVisuals(simCoordToGL(p.position), dir));
 
-				if (++addedActors >= DRAWN_ACTORS)
-				{
-					break;
-				}
+				if (--remainingDraws <= 0) break;
 			}
 		}
 
 		return persons;
-	}
-
-	float2 simToGL(float2 pos)
-	{
-		float maxVal = CELLS_PER_AXIS * CELL_SIZE;
-		float xPos = pos.x / maxVal * 2.f - 1.f;
-		float yPos = (pos.y / maxVal * 2.f - 1.f) * -1.f;
-
-		return make_float2(xPos, yPos);
 	}
 }

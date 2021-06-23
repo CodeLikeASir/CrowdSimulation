@@ -1,28 +1,23 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-
 #include <iostream>
 #include <vector_functions.h>
 #include <vector_types.h>
 #include <Windows.h>
+#include <chrono>
 
 #include "SF_CUDA.cuh"
 #include "SF_Sequential.h"
-#include <chrono>
 #include "Math_Helper.cuh"
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+float vertices[SPAWNED_ACTORS * 9];
 
-//SF_Sequential sf;
-
-float vertices[SPAWNED_ACTORS * 9]; //SPAWNED_ACTORS * 9
-
-const float size = 0.005f;
-bool shouldClose = false;
-
-// settings
+// window size in px
 const unsigned int SCR_WIDTH = 1440;
 const unsigned int SCR_HEIGHT = 1080;
+
+// Size of actors in GL coordinates
+const float size = 0.005f;
 
 // Basic shader code
 const char* vertexShaderSource = "#version 330 core\n"
@@ -38,6 +33,12 @@ const GLchar* fragmentShaderSource = "#version 330 core\n"
 "{\n"
 "color = vec4(0.5f, 0.3f, 0.2f, 1.0f);\n"
 "}\n\0";
+
+// glfw: whenever the window size changed (by OS or user resize) this callback function executes
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    glViewport(0, 0, width, height);
+}
 
 // Creates triangles based on position and facing direction
 bool construct_triangle(GLfloat* triangle, float2 pos, float2 dir)
@@ -62,6 +63,7 @@ bool construct_triangle(GLfloat* triangle, float2 pos, float2 dir)
 
 		return true;
 	}
+	// If person reached their goal, they are drawn as up facing
 	else
 	{
         triangle[0] = pos.x;
@@ -80,6 +82,7 @@ bool construct_triangle(GLfloat* triangle, float2 pos, float2 dir)
 	}
 }
 
+// Updates all triangle positions and directions based on current simulation
 void updateVisuals(std::vector<PersonVisuals> pv)
 {
     for (int i = 0; i < pv.size(); i++)
@@ -87,8 +90,7 @@ void updateVisuals(std::vector<PersonVisuals> pv)
         PersonVisuals person = pv[i];
 
         GLfloat triangle[9];
-
-    	/*drewTri =*/ construct_triangle(triangle, person.position, person.direction);
+    	construct_triangle(triangle, person.position, person.direction);
 
         for (int j = 0; j < 9; j++)
         {
@@ -99,9 +101,9 @@ void updateVisuals(std::vector<PersonVisuals> pv)
 
 int main()
 {
-	double minTime = 1000.f;
-	double maxTime = 0.f;
-	double totalTime = 0.f;
+	double minTime = 1000.;
+	double maxTime = 0.;
+	double totalTime = 0.;
 	int sampleCount = 0;
 	
     // glfw: initialize and configure
@@ -148,20 +150,20 @@ int main()
 	
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
-
-	// Bacck to vertices
+    
     unsigned int VBO;
     glGenBuffers(1, &VBO);
 
+	// Initializes crowd simulation
 	if(USE_CUDA)
 	{
 		SF_CUDA::init();
-        updateVisuals(SF_CUDA::convertToVisual(false));
+        updateVisuals(SF_CUDA::convertToVisual());
 	}
 	else
 	{
         SF_Sequential::init();
-        //updateVisuals(SF_Sequential::convertToVisual(false));
+        updateVisuals(SF_Sequential::convertToVisual());
 	}
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -180,7 +182,7 @@ int main()
     int remainingUpdates = 1000;
     // render + simulation loop
     // -----------
-    while (!glfwWindowShouldClose(window) && !shouldClose)
+    while (!glfwWindowShouldClose(window))
     {
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
     	
@@ -200,6 +202,7 @@ int main()
     	// Start next simulation step
         auto t1 = std::chrono::high_resolution_clock::now();
 
+    	// Calculates crowd simulation
         if(USE_CUDA)
             SF_CUDA::simulate();
     	else
@@ -215,13 +218,16 @@ int main()
     	totalTime += ms_double.count();
     	sampleCount++;
 
+    	// Updates visual representation
     	if(USE_CUDA)
-			updateVisuals(SF_CUDA::convertToVisual(false));
+			updateVisuals(SF_CUDA::convertToVisual());
+    	else
+			updateVisuals(SF_Sequential::convertToVisual());
         
         std::chrono::duration<double, std::milli> update_time = t2 - t1;
-    	double remaining_time = (1000.f / MAX_FPS) - update_time.count();
+    	double remaining_time = (1000. / MAX_FPS) - update_time.count();
 
-    	if(remaining_time > 0.f)
+    	if(remaining_time > 0.)
 			Sleep(remaining_time);
 
     	if(--remainingUpdates <= 0)
@@ -233,13 +239,4 @@ int main()
     // Terminate, clearing all previously allocated GLFW resources.
     glfwTerminate();
     return 0;
-}
-
-// glfw: whenever the window size changed (by OS or user resize) this callback function executes
-// ---------------------------------------------------------------------------------------------
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
-    // make sure the viewport matches the new window dimensions; note that width and 
-    // height will be significantly larger than specified on retina displays.
-    glViewport(0, 0, width, height);
 }

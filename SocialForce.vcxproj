@@ -98,7 +98,7 @@
     <ClInclude Include="src\Math_Helper.cuh" />
     <ClInclude Include="src\SF_CUDA.cuh" />
     <ClInclude Include="src\SF_Sequential.h" />
-    <ClInclude Include="src\Person.h" />
+    <ClInclude Include="src\PersonStructs.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
