@@ -264,7 +264,7 @@ namespace SF_CUDA
 		cudaError_t error = cudaDeviceSynchronize();
 		if (error)
 		{
-			std::cout << cudaGetErrorName << ": " << cudaGetErrorString(error) << "\n";
+			std::cout << "ERROR: " << cudaGetErrorName << ": " << cudaGetErrorString(error) << "\n";
 		}
 
 		completeMove << < blocksPerGrid, MAX_OCCUPATION >> > (deviceCells);

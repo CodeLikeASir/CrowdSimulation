@@ -3,10 +3,10 @@
 #define	 USE_CUDA			true
 
 // Should be a squared value for optimal spacing
-#define  SPAWNED_ACTORS		3
+#define  SPAWNED_ACTORS		36
 
 // Number of actors drawn on screen (others will still be simulated)
-#define  DRAWN_ACTORS		1
+#define  DRAWN_ACTORS		0
 
 // Number of cells per axis, this value squared = total cells
 #define  CELLS_PER_AXIS		3
@@ -36,7 +36,7 @@
 // Parameters for social force calculations
 
 // Weight of social force
-#define  S					1.f
+#define  S					.5f
 // Weight of own velocity
 #define  EPSILON			1.f
 // Max distance of social force
