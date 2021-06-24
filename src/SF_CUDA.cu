@@ -74,7 +74,7 @@ namespace SF_CUDA
 		int cellB = cellPosToIndex(cellBPos);
 		float2 forceVector = make_float2(0.f, 0.f);
 
-		if (!(cellB < 0 || cellB >= CELLS_PER_AXIS * CELLS_PER_AXIS))
+		if (cellB >= 0 && cellB < TOTAL_CELLS)
 		{
 			// Number of people in influencing cell, important for congestion avoidance
 			int blockppl = 0;
@@ -85,12 +85,12 @@ namespace SF_CUDA
 				// Ignore yourself
 				if (threadIdx.y == 1 && threadIdx.z == 1 && threadIdx.x % MAX_OCCUPATION == i)
 					continue;
-
+				
 				Person* other = &device_grid[cellB * MAX_OCCUPATION + i];
-
+				
 				if (other->state == FREE)
 					continue;
-
+				
 				forceVector = forceVector + calculateSF(personA, other);
 				blockppl++;
 			}
@@ -135,22 +135,25 @@ namespace SF_CUDA
 			if (oldCell != newCell)
 			{
 				bool cellChanged = false;
-
-				// Look for space in new cell
-				for (int i = newCell * MAX_OCCUPATION; i < (newCell + 1) * MAX_OCCUPATION; i++)
+				
+				if(newCell >= 0 && newCell < TOTAL_CELLS)
 				{
-					if (atomicCAS(&device_grid[i].state, FREE, RESERVED) == FREE)
+					// Look for space in new cell
+					for (int i = newCell * MAX_OCCUPATION; i < (newCell + 1) * MAX_OCCUPATION; i++)
 					{
-						device_grid[cellA * MAX_OCCUPATION + threadIdx.x].state = LEAVING;
+						if (atomicCAS(&device_grid[i].state, FREE, RESERVED) == FREE)
+						{
+							device_grid[cellA * MAX_OCCUPATION + threadIdx.x].state = LEAVING;
 
-						device_grid[i] = Person(device_grid[cellA * MAX_OCCUPATION + threadIdx.x]);
-						device_grid[i].state = RESERVED;
+							device_grid[i] = Person(device_grid[cellA * MAX_OCCUPATION + threadIdx.x]);
+							device_grid[i].state = RESERVED;
 
-						cellChanged = true;
-						break;
+							cellChanged = true;
+							break;
+						}
 					}
 				}
-
+				
 				// If entry to other cell was denied, block movement
 				if (!cellChanged)
 				{
@@ -231,7 +234,7 @@ namespace SF_CUDA
 		{
 			cells[i] = Person();
 		}
-
+		
 		int totallySpawned = 0;
 		int remainingSpawns = SPAWNED_ACTORS;
 
@@ -253,7 +256,10 @@ namespace SF_CUDA
 		endspawn:
 		std::cout << "Spawned " << totallySpawned << " people.\n";
 		
-		cudaMalloc((void**)&deviceCells, TOTAL_SPACES * sizeof(Person));
+		cudaError_t error = cudaMalloc((void**)&deviceCells, TOTAL_SPACES * sizeof(Person));
+		if (error)
+			std::cout << "Error while allocating!\n";
+		
 		cudaMemcpy(deviceCells, cells, TOTAL_SPACES * sizeof(Person), cudaMemcpyHostToDevice);
 	}
 
@@ -264,11 +270,17 @@ namespace SF_CUDA
 		cudaError_t error = cudaDeviceSynchronize();
 		if (error)
 		{
-			std::cout << "ERROR: " << cudaGetErrorName << ": " << cudaGetErrorString(error) << "\n";
+			std::cout << "CF: " << cudaGetErrorName << ": " << cudaGetErrorString(error) << "\n";
 		}
 
 		completeMove << < blocksPerGrid, MAX_OCCUPATION >> > (deviceCells);
 		cudaDeviceSynchronize();
+
+		error = cudaDeviceSynchronize();
+		if (error)
+		{
+			std::cout << "CM: " << cudaGetErrorName << ": " << cudaGetErrorString(error) << "\n";
+		}
 
 		cudaMemcpy(cells, deviceCells, TOTAL_SPACES * sizeof(Person), cudaMemcpyDeviceToHost);
 	}

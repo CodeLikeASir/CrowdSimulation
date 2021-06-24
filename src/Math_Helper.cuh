@@ -94,6 +94,7 @@ __host__ __device__ inline int personPosToCellIndex(int x, int y)
 {
 	int cellX = x / CELL_SIZE;
 	int cellY = y / CELL_SIZE;
+	
 	return cellX + cellY * CELLS_PER_AXIS;
 }
 

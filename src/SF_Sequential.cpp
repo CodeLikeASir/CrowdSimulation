@@ -193,11 +193,7 @@ namespace SF_Sequential
 				forceVector.y -= (pThreadIdx.z - 1) * (blockppl - 20) * AVOIDANCE_FORCE;
 			}
 		}
-
-		if (magnitude(forceVector) > 10.f)
-		{
-			std::cout << "oh  noes";
-		}
+		
 		return forceVector;
 	}
 
@@ -215,20 +211,23 @@ namespace SF_Sequential
 		{
 			bool cellChanged = false;
 
-			// Look for space in new cell
-			for (int i = newCell * MAX_OCCUPATION; i < (newCell + 1) * MAX_OCCUPATION; i++)
+			if (newCell >= 0 && newCell < TOTAL_CELLS)
 			{
-				if (cells[i].state == FREE)
+				// Look for space in new cell
+				for (int i = newCell * MAX_OCCUPATION; i < (newCell + 1) * MAX_OCCUPATION; i++)
 				{
-					cells[i].state = RESERVED;
+					if (cells[i].state == FREE)
+					{
+						cells[i].state = RESERVED;
 
-					cells[cellIndex * MAX_OCCUPATION + threadX].state = LEAVING;
+						cells[cellIndex * MAX_OCCUPATION + threadX].state = LEAVING;
 
-					cells[i] = Person(cells[cellIndex * MAX_OCCUPATION + threadX]);
-					cells[i].state = RESERVED;
+						cells[i] = Person(cells[cellIndex * MAX_OCCUPATION + threadX]);
+						cells[i].state = RESERVED;
 
-					cellChanged = true;
-					break;
+						cellChanged = true;
+						break;
+					}
 				}
 			}
 

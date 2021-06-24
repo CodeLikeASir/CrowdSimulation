@@ -1,5 +1,4 @@
 ﻿#pragma once
-#include "SF_Sequential.h"
 #include "Macros.h"
 #include "Math_Helper.cuh"
 

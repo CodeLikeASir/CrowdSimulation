@@ -83,20 +83,24 @@ bool construct_triangle(GLfloat* triangle, float2 pos, float2 dir)
 }
 
 // Updates all triangle positions and directions based on current simulation
-void updateVisuals(std::vector<PersonVisuals> pv)
+bool updateVisuals(std::vector<PersonVisuals> pv)
 {
+    bool didMove = false;
     for (int i = 0; i < pv.size(); i++)
     {
         PersonVisuals person = pv[i];
 
         GLfloat triangle[9];
-    	construct_triangle(triangle, person.position, person.direction);
+        if (construct_triangle(triangle, person.position, person.direction))
+            didMove = true;
 
         for (int j = 0; j < 9; j++)
         {
             vertices[i * 9 + j] = triangle[j];
         }
     }
+
+    return didMove;
 }
 
 int main()
@@ -179,7 +183,7 @@ int main()
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)nullptr);
     glEnableVertexAttribArray(0);
 
-    int remainingUpdates = 1000;
+    int remainingUpdates = 10000;
     // render + simulation loop
     // -----------
     while (!glfwWindowShouldClose(window))
@@ -229,7 +233,7 @@ int main()
 
     	if(remaining_time > 0.)
 			Sleep(remaining_time);
-
+        
     	if(--remainingUpdates <= 0)
 			break;
     }

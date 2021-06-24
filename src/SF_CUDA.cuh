@@ -4,6 +4,8 @@
 #include <cuda.h>
 #include <iostream>
 #include <cuda_runtime.h>
+#include <vector>
+
 #include "PersonStructs.h"
 
 namespace SF_CUDA
