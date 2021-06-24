@@ -9,13 +9,10 @@ constexpr auto SPAWNED_ACTORS = 2048;
 constexpr auto DRAWN_ACTORS = 0;
 
 // Number of cells per axis, this value squared = total cells
-constexpr auto CELLS_PER_AXIS = 12;
+constexpr auto CELLS_PER_AXIS = 38;
 
 // Max number of actors per cell
 constexpr auto MAX_OCCUPATION = 32;
-
-constexpr auto TOTAL_CELLS = (CELLS_PER_AXIS * CELLS_PER_AXIS);
-constexpr auto TOTAL_SPACES = (TOTAL_CELLS * MAX_OCCUPATION);
 
 // Size of cell in meters
 constexpr auto CELL_SIZE = 4;
@@ -27,16 +24,16 @@ constexpr auto SAFEZONE = 2;
 constexpr auto MIN_DIST = 1.f;
 
 // Default speed of actors
-constexpr auto SPEED = 3.f;
+constexpr auto SPEED = 1.34f;
 
 // Max FPS of simulation,
 // only relevant if simulation takes less than 1/MAX_FPS seconds
-constexpr auto MAX_FPS = 60.;
+constexpr auto MAX_FPS = 30.;
 
 // Parameters for social force calculations
 
 // Weight of social force
-constexpr auto S = 0.f;
+constexpr auto S = 1.f;
 // Weight of own velocity
 constexpr auto EPSILON = 1.f;
 // Max distance of social force

@@ -26,8 +26,9 @@ namespace SF_Sequential
 
 	void init()
 	{
-		cells = static_cast<Person*>(malloc(sizeof(Person) * TOTAL_SPACES));
-		for (int i = 0; i < TOTAL_SPACES; i++)
+		int total_spaces = CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION;
+		cells = static_cast<Person*>(malloc(sizeof(Person) * total_spaces));
+		for (int i = 0; i < total_spaces; i++)
 		{
 			cells[i] = Person();
 		}
@@ -211,7 +212,7 @@ namespace SF_Sequential
 		{
 			bool cellChanged = false;
 
-			if (newCell >= 0 && newCell < TOTAL_CELLS)
+			if (newCell >= 0 && newCell < CELLS_PER_AXIS * CELLS_PER_AXIS)
 			{
 				// Look for space in new cell
 				for (int i = newCell * MAX_OCCUPATION; i < (newCell + 1) * MAX_OCCUPATION; i++)
@@ -288,7 +289,7 @@ namespace SF_Sequential
 		std::vector<PersonVisuals> persons;
 		int remainingDraws = DRAWN_ACTORS > 0 ? DRAWN_ACTORS : SPAWNED_ACTORS;
 
-		for (int i = 0; i < TOTAL_SPACES; i++)
+		for (int i = 0; i < CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION; i++)
 		{
 			Person& p = cells[i];
 			if (p.state != FREE)

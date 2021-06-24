@@ -66,7 +66,7 @@ namespace SF_CUDA
 		Person* personA = &device_grid[cellA * MAX_OCCUPATION + threadIdx.x];
 
 		// If space is empty, thread can terminate early
-		if (personA->state == FREE)
+		if (personA->state != OCCUPIED)
 			return;
 
 		short2 cellBPos = make_short2(cellAPos.x - 1 + threadIdx.y, cellAPos.y - 1 + threadIdx.z);
@@ -74,7 +74,7 @@ namespace SF_CUDA
 		int cellB = cellPosToIndex(cellBPos);
 		float2 forceVector = make_float2(0.f, 0.f);
 
-		if (cellB >= 0 && cellB < TOTAL_CELLS)
+		if (cellB >= 0 && cellB < CELLS_PER_AXIS * CELLS_PER_AXIS)
 		{
 			// Number of people in influencing cell, important for congestion avoidance
 			int blockppl = 0;
@@ -88,7 +88,7 @@ namespace SF_CUDA
 				
 				Person* other = &device_grid[cellB * MAX_OCCUPATION + i];
 				
-				if (other->state == FREE)
+				if (other->state != OCCUPIED)
 					continue;
 				
 				forceVector = forceVector + calculateSF(personA, other);
@@ -124,7 +124,7 @@ namespace SF_CUDA
 				resultForce = resultForce + totalForces[threadIdx.x][i];
 			}
 
-			personA->velocity = make_float2(personA->velocity.x - resultForce.x, personA->velocity.y - resultForce.y);
+			personA->velocity = make_float2(personA->velocity.x - resultForce.x * DELTA, personA->velocity.y - resultForce.y * DELTA);
 
 			float2 newPos = personA->position + personA->velocity * DELTA;
 
@@ -136,8 +136,10 @@ namespace SF_CUDA
 			{
 				bool cellChanged = false;
 				
-				if(newCell >= 0 && newCell < TOTAL_CELLS)
+				if(newCell >= 0 && newCell < CELLS_PER_AXIS * CELLS_PER_AXIS)
 				{
+					int cellFull = false;
+					
 					// Look for space in new cell
 					for (int i = newCell * MAX_OCCUPATION; i < (newCell + 1) * MAX_OCCUPATION; i++)
 					{
@@ -151,6 +153,15 @@ namespace SF_CUDA
 							cellChanged = true;
 							break;
 						}
+						else
+						{
+							cellFull++;
+						}
+					}
+
+					if(cellFull >= 32)
+					{
+						int testb = 2345;
 					}
 				}
 				
@@ -199,6 +210,7 @@ namespace SF_CUDA
 			person->goal = person->position;
 			person->velocity = make_float2(0.f, 0.f);
 			person->direction = make_float2(0.f, 0.f);
+			person->state = FREE;
 		}
 		// Otherwise update move direction and velocity
 		else
@@ -229,8 +241,8 @@ namespace SF_CUDA
 
 	void init()
 	{
-		cells = static_cast<Person*>(malloc(sizeof(Person) * TOTAL_SPACES));
-		for (int i = 0; i < TOTAL_SPACES; i++)
+		cells = static_cast<Person*>(malloc(sizeof(Person) * CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION));
+		for (int i = 0; i < CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION; i++)
 		{
 			cells[i] = Person();
 		}
@@ -256,11 +268,11 @@ namespace SF_CUDA
 		endspawn:
 		std::cout << "Spawned " << totallySpawned << " people.\n";
 		
-		cudaError_t error = cudaMalloc((void**)&deviceCells, TOTAL_SPACES * sizeof(Person));
+		cudaError_t error = cudaMalloc((void**)&deviceCells, CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION * sizeof(Person));
 		if (error)
 			std::cout << "Error while allocating!\n";
 		
-		cudaMemcpy(deviceCells, cells, TOTAL_SPACES * sizeof(Person), cudaMemcpyHostToDevice);
+		cudaMemcpy(deviceCells, cells, CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION * sizeof(Person), cudaMemcpyHostToDevice);
 	}
 
 	void simulate()
@@ -282,7 +294,7 @@ namespace SF_CUDA
 			std::cout << "CM: " << cudaGetErrorName << ": " << cudaGetErrorString(error) << "\n";
 		}
 
-		cudaMemcpy(cells, deviceCells, TOTAL_SPACES * sizeof(Person), cudaMemcpyDeviceToHost);
+		cudaMemcpy(cells, deviceCells, CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION * sizeof(Person), cudaMemcpyDeviceToHost);
 	}
 
 	std::vector<PersonVisuals> convertToVisual()
@@ -290,7 +302,7 @@ namespace SF_CUDA
 		std::vector<PersonVisuals> persons;
 		int remainingDraws = DRAWN_ACTORS > 0 ? DRAWN_ACTORS : SPAWNED_ACTORS;
 
-		for (int i = 0; i < TOTAL_SPACES; i++)
+		for (int i = 0; i < CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION; i++)
 		{
 			Person& p = cells[i];
 			if (p.state != FREE)

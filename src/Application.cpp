@@ -85,6 +85,8 @@ bool construct_triangle(GLfloat* triangle, float2 pos, float2 dir)
 // Updates all triangle positions and directions based on current simulation
 bool updateVisuals(std::vector<PersonVisuals> pv)
 {
+    std::fill_n(vertices, SPAWNED_ACTORS * 9, 0);
+	
     bool didMove = false;
     for (int i = 0; i < pv.size(); i++)
     {

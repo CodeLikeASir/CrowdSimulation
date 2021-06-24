@@ -1,7 +1,44 @@
-﻿  Compiling CUDA source file src\SF_CUDA.cu...
+﻿  Compiling CUDA source file kernel.cu...
+  Compiling CUDA source file src\SF_CUDA.cu...
+  
+  C:\Users\Jan\Documents\GitHub\CrowdSimulation>"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\bin\nvcc.exe" -gencode=arch=compute_52,code=\"sm_52,compute_52\" --use-local-env -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.29.30037\bin\HostX86\x64" -x cu   -IC:\Users\Jan\Documents\GitHub\CrowdSimulation\ExternalResources\GLFW\include -IC:\Users\Jan\Documents\GitHub\CrowdSimulation\ExternalResources\GLAD -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\include" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\include"  -G   --keep-dir x64\Debug  -maxrregcount=0  --machine 64 --compile -cudart static  -g  -DWIN32 -DWIN64 -D_DEBUG -D_CONSOLE -D_MBCS -Xcompiler "/EHsc /W3 /nologo /Od /Fdx64\Debug\vc142.pdb /FS /Zi /RTC1 /MDd " -o x64\Debug\kernel.cu.obj "C:\Users\Jan\Documents\GitHub\CrowdSimulation\kernel.cu" 
   
   C:\Users\Jan\Documents\GitHub\CrowdSimulation>"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\bin\nvcc.exe" -gencode=arch=compute_52,code=\"sm_52,compute_52\" --use-local-env -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.29.30037\bin\HostX86\x64" -x cu   -IC:\Users\Jan\Documents\GitHub\CrowdSimulation\ExternalResources\GLFW\include -IC:\Users\Jan\Documents\GitHub\CrowdSimulation\ExternalResources\GLAD -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\include" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.3\include"  -G   --keep-dir x64\Debug  -maxrregcount=0  --machine 64 --compile -cudart static  -g  -DWIN32 -DWIN64 -D_DEBUG -D_CONSOLE -D_MBCS -Xcompiler "/EHsc /W3 /nologo /Od /Fdx64\Debug\vc142.pdb /FS /Zi /RTC1 /MDd " -o x64\Debug\SF_CUDA.cu.obj "C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_CUDA.cu" 
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_CUDA.cu(164): warning : variable "testb" was declared but never referenced
+  
+  kernel.cu
   SF_CUDA.cu
-C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_CUDA.cu(241): warning C4244: "Initialisierung": Konvertierung von "float" in "int", möglicher Datenverlust
-C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_CUDA.cu(242): warning C4244: "Initialisierung": Konvertierung von "int" in "float", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_CUDA.cu(253): warning C4244: "Initialisierung": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_CUDA.cu(254): warning C4244: "Initialisierung": Konvertierung von "int" in "float", möglicher Datenverlust
+  Application.cpp
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\shared\minwindef.h(130,1): warning C4005: "APIENTRY": Makro-Neudefinition
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\ExternalResources\GLAD\glad\glad.h(32): message : Siehe vorherige Definition von "APIENTRY"
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\Application.cpp(237,10): warning C4244: "Argument": Konvertierung von "double" in "DWORD", möglicher Datenverlust
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.29.30037\include\xutility(4634,27): warning C4244: "=": Konvertierung von "const _Ty" in "float", möglicher Datenverlust
+          with
+          [
+              _Ty=int
+          ]
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\Application.cpp(88): message : Siehe Verweis auf die gerade kompilierte Instanziierung "_OutIt *std::fill_n<float*,int,int>(_OutIt,const _Diff,const _Ty &)" der Funktions-Vorlage.
+          with
+          [
+              _OutIt=float *,
+              _Diff=int,
+              _Ty=int
+          ]
+  SF_Sequential.cpp
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_Sequential.cpp(39,20): warning C4244: "Initialisierung": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_Sequential.cpp(40,17): warning C4244: "Initialisierung": Konvertierung von "int" in "float", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_Sequential.cpp(84,17): warning C4244: "Initialisierung": Konvertierung von "double" in "float", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_Sequential.cpp(96,12): warning C4244: "Initialisierung": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_Sequential.cpp(205,62): warning C4305: "Argument": Verkürzung von "const double" in "const float"
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_Sequential.cpp(208,74): warning C4244: "Argument": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_Sequential.cpp(208,54): warning C4244: "Argument": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_Sequential.cpp(209,54): warning C4244: "Argument": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_Sequential.cpp(209,44): warning C4244: "Argument": Konvertierung von "float" in "int", möglicher Datenverlust
+C:\Users\Jan\Documents\GitHub\CrowdSimulation\src\SF_Sequential.cpp(266,69): warning C4305: "Argument": Verkürzung von "const double" in "const float"
+  Code wird generiert...
+  glad.c
+     Bibliothek "C:\Users\Jan\Documents\GitHub\CrowdSimulation\x64\Debug\SocialForce.lib" und Objekt "C:\Users\Jan\Documents\GitHub\CrowdSimulation\x64\Debug\SocialForce.exp" werden erstellt.
+LINK : warning LNK4098: Standardbibliothek "MSVCRT" steht in Konflikt mit anderen Bibliotheken; /NODEFAULTLIB:Bibliothek verwenden.
   SocialForce.vcxproj -> C:\Users\Jan\Documents\GitHub\CrowdSimulation\x64\Debug\SocialForce.exe
