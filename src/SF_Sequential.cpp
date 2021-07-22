@@ -12,7 +12,7 @@ namespace SF_Sequential
 	int getCellPopulation(uint3 cell)
 	{
 		int count = 0;
-		int firstIndex = getFirstCellIndex(cell);
+		int firstIndex = get_first_cell_index(cell);
 		for (int i = firstIndex; i < firstIndex + MAX_OCCUPATION; i++)
 		{
 			if (cells[i].state == OCCUPIED)
@@ -26,32 +26,25 @@ namespace SF_Sequential
 
 	void init()
 	{
-		int total_spaces = CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION;
-		cells = static_cast<Person*>(malloc(sizeof(Person) * total_spaces));
-		for (int i = 0; i < total_spaces; i++)
+		cells = static_cast<Person*>(malloc(sizeof(Person) * CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION));
+		for (int i = 0; i < CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION; i++)
 		{
 			cells[i] = Person();
 		}
 
 		int totallySpawned = 0;
-		int remainingSpawns = SPAWNED_ACTORS;
 
-		int spawnsPerRow = ceil(sqrtf(SPAWNED_ACTORS));
-		float spacing = CELLS_PER_AXIS * CELL_SIZE / spawnsPerRow;
-		for (int x = 0; x < spawnsPerRow; x++)
+		for (int i = 0; i < SPAWNED_ACTORS; i++)
 		{
-			for (int y = 0; y < spawnsPerRow; y++)
+			bool spawned = false;
+			while (!spawned)
 			{
-				float2 spawnPos = make_float2(x * spacing, y * spacing);
-				add_to_grid(Person(spawnPos, getRandomPos()));
-
-				totallySpawned++;
-				if (--remainingSpawns <= 0)
-					goto endspawn;
+				spawned = add_to_grid(Person(getRandomPos(), getRandomPos()));
 			}
+
+			totallySpawned++;
 		}
 
-	endspawn:
 		std::cout << "Spawned " << totallySpawned << " people.\n";
 	}
 
@@ -90,10 +83,9 @@ namespace SF_Sequential
 		return f_ab;
 	}
 
-	void add_to_grid(const Person& p)
+	bool add_to_grid(const Person& p)
 	{
-		float2 cell_coords = p.position / CELL_SIZE;
-		int cell = cell_coords.x + cell_coords.y * CELLS_PER_AXIS;
+		int cell = cellPosToIndex(p.position / CELL_SIZE);
 
 		for (int i = 0; i < MAX_OCCUPATION; i++)
 		{
@@ -103,8 +95,10 @@ namespace SF_Sequential
 				continue;
 
 			cells[index] = Person(p);
-			break;
+			return true;
 		}
+
+		return false;
 	}
 
 	void simulate()
@@ -115,7 +109,7 @@ namespace SF_Sequential
 			{
 				// pBlockIdx simulates behavior of CUDA blockIdx
 				uint3 pBlockIdx = make_uint3(cellX, cellY, 0);
-				
+
 				short cellA = cellPosToIndex(cellX, cellY);
 				int cellPop = getCellPopulation(pBlockIdx);
 
@@ -168,7 +162,7 @@ namespace SF_Sequential
 		{
 			// People in analyzed cell
 			int blockppl = 0;
-			
+
 			// Iterate over spaces in neighbor cell
 			for (int i = 0; i < MAX_OCCUPATION; i++)
 			{
@@ -194,7 +188,7 @@ namespace SF_Sequential
 				forceVector.y -= (pThreadIdx.z - 1) * (blockppl - 20) * AVOIDANCE_FORCE;
 			}
 		}
-		
+
 		return forceVector;
 	}
 
@@ -210,7 +204,7 @@ namespace SF_Sequential
 
 		if (oldCell != newCell)
 		{
-			bool cellChanged = false;
+			bool reservedSpace = false;
 
 			if (newCell >= 0 && newCell < CELLS_PER_AXIS * CELLS_PER_AXIS)
 			{
@@ -226,13 +220,13 @@ namespace SF_Sequential
 						cells[i] = Person(cells[cellIndex * MAX_OCCUPATION + threadX]);
 						cells[i].state = RESERVED;
 
-						cellChanged = true;
+						reservedSpace = true;
 						break;
 					}
 				}
 			}
 
-			if (!cellChanged)
+			if (!reservedSpace)
 			{
 				personA.velocity = make_float2(0.f, 0.f);
 			}
@@ -269,36 +263,31 @@ namespace SF_Sequential
 				personA->goal.x - personA->position.x,
 				personA->goal.y - personA->position.y);
 
-			if (magnitude(goalDir) < MIN_DIST)
-			{
-				personA->goal = personA->position; //make_float2(0.f, 0.f); //getRandomPos();
-				personA->velocity = make_float2(0.f, 0.f);
-				personA->direction = make_float2(0.f, 0.f);
-			}
-			else
-			{
-				goalDir = normalize(goalDir);
-				personA->direction = goalDir;
-				personA->velocity = goalDir * SPEED;
-			}
+
+			goalDir = normalize(goalDir);
+			personA->direction = goalDir;
+			personA->velocity = goalDir * SPEED;
 		}
 	}
 
 	std::vector<PersonVisuals> convertToVisual()
 	{
 		std::vector<PersonVisuals> persons;
-		int remainingDraws = DRAWN_ACTORS > 0 ? DRAWN_ACTORS : SPAWNED_ACTORS;
 
 		for (int i = 0; i < CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION; i++)
 		{
 			Person& p = cells[i];
 			if (p.state != FREE)
 			{
+				if (dist(p.position, p.goal) < MIN_DIST)
+				{
+					p.goal = getRandomPos();
+				}
+
 				float2 dir = p.direction;
 				dir.y = -dir.y;
-				persons.emplace_back(simCoordToGL(p.position), dir);
 
-				if (--remainingDraws <= 0) break;
+				persons.emplace_back(simCoordToGL(p.position), dir);
 			}
 		}
 

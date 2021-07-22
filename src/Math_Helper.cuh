@@ -74,7 +74,7 @@ __host__ __device__ inline int cellPosToIndex(short2 pos)
 // Converts cell coordinates to cell index
 __host__ __device__ inline int cellPosToIndex(float2 pos)
 {
-	return cellPosToIndex((int) pos.x, (int) pos.y);
+	return cellPosToIndex((int)pos.x, (int)pos.y);
 }
 
 // Converts cell index to cell coordinates
@@ -90,11 +90,11 @@ __host__ __device__ inline int personToCell(int index)
 }
 
 // Converts persons position to cell index
-__host__ __device__ inline int personPosToCellIndex(int x, int y)
+__host__ __device__ inline int personPosToCellIndex(float x, float y)
 {
-	int cellX = x / CELL_SIZE;
-	int cellY = y / CELL_SIZE;
-	
+	int cellX = x / (float) CELL_SIZE;
+	int cellY = y / (float)CELL_SIZE;
+
 	return cellX + cellY * CELLS_PER_AXIS;
 }
 
@@ -102,8 +102,9 @@ __host__ __device__ inline int personPosToCellIndex(int x, int y)
 // Only works on host due to rand() usage
 __host__ inline float2 getRandomPos()
 {
-	short x = rand() % (CELL_SIZE * CELLS_PER_AXIS - SAFEZONE) + SAFEZONE;
-	short y = rand() % (CELL_SIZE * CELLS_PER_AXIS - SAFEZONE) + SAFEZONE;
+	float x = rand() % (CELL_SIZE * CELLS_PER_AXIS);
+	float y = rand() % (CELL_SIZE * CELLS_PER_AXIS);
+
 	return make_float2(x, y);
 }
 
@@ -115,4 +116,9 @@ inline float2 simCoordToGL(float2 pos)
 	float yPos = (pos.y / maxVal * 2.f - 1.f) * -1.f;
 
 	return make_float2(xPos, yPos);
+}
+
+inline float dist(float2 posA, float2 posB)
+{
+	return abs(posA.x - posB.x) + abs(posA.y - posB.y);
 }

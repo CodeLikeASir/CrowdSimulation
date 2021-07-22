@@ -2,7 +2,6 @@
 #include <cuda_runtime_api.h>
 #include <device_launch_parameters.h>
 #include <cuda.h>
-#include <iostream>
 #include <cuda_runtime.h>
 #include <vector>
 
@@ -26,7 +25,7 @@ namespace SF_CUDA
 	void init();
 
 	// Adds new person
-	void add_to_grid(const Person& p);
+	bool add_to_grid(const Person& p);
 
 	// Calculates one simulation step
 	void simulate();
@@ -43,4 +42,6 @@ namespace SF_CUDA
 
 	// Extracts all simulated persons from cells and returns them in OpenGL coordinates
 	std::vector<PersonVisuals> convertToVisual();
+
+	void printTransferTime();
 }

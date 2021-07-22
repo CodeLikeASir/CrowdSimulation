@@ -1,7 +1,6 @@
 ﻿#include "SF_CUDA.cuh"
-
+#include <chrono>
 #include <iostream>
-
 #include "Math_Helper.cuh"
 
 namespace SF_CUDA
@@ -14,11 +13,10 @@ namespace SF_CUDA
 
 	// 1 (thread) block = 1 cell
 	dim3 blocksPerGrid(CELLS_PER_AXIS, CELLS_PER_AXIS, 1);
-
-	// Per cell: 1 thread per space,
+	
 	// Per space: 9 threads, 1 for each influencing cell
 	dim3 threadsPerBlock(MAX_OCCUPATION, 3, 3);
-	
+
 	__device__ float2 calculateSF(Person* personA, Person* personB)
 	{
 		float v_a0 = magnitude(personA->velocity);
@@ -78,19 +76,19 @@ namespace SF_CUDA
 		{
 			// Number of people in influencing cell, important for congestion avoidance
 			int blockppl = 0;
-			
+
 			// Iterate over space in neighbor cell
 			for (int i = 0; i < MAX_OCCUPATION; i++)
 			{
 				// Ignore yourself
 				if (threadIdx.y == 1 && threadIdx.z == 1 && threadIdx.x % MAX_OCCUPATION == i)
 					continue;
-				
+
 				Person* other = &device_grid[cellB * MAX_OCCUPATION + i];
-				
+
 				if (other->state != OCCUPIED)
 					continue;
-				
+
 				forceVector = forceVector + calculateSF(personA, other);
 				blockppl++;
 			}
@@ -101,8 +99,8 @@ namespace SF_CUDA
 			// Only calculate avoidance force if influencing cell =/= influenced cell
 			if ((threadIdx.y != 1 || threadIdx.z != 1) && (blockppl > 20 || ppl > 26))
 			{
-				forceVector.x -= (threadIdx.y - 1) * (blockppl - 20) * AVOIDANCE_FORCE;
-				forceVector.y -= (threadIdx.z - 1) * (blockppl - 20) * AVOIDANCE_FORCE;
+				forceVector.x -= (threadIdx.y - 1.f) * (blockppl - 20) * AVOIDANCE_FORCE;
+				forceVector.y -= (threadIdx.z - 1.f) * (blockppl - 20) * AVOIDANCE_FORCE;
 			}
 		}
 
@@ -124,7 +122,7 @@ namespace SF_CUDA
 				resultForce = resultForce + totalForces[threadIdx.x][i];
 			}
 
-			personA->velocity = make_float2(personA->velocity.x - resultForce.x * DELTA, personA->velocity.y - resultForce.y * DELTA);
+			personA->updateVelocity(personA->velocity - resultForce * DELTA);
 
 			float2 newPos = personA->position + personA->velocity * DELTA;
 
@@ -134,12 +132,10 @@ namespace SF_CUDA
 
 			if (oldCell != newCell)
 			{
-				bool cellChanged = false;
-				
-				if(newCell >= 0 && newCell < CELLS_PER_AXIS * CELLS_PER_AXIS)
+				bool reservedSpace = false;
+
+				if (newCell >= 0 && newCell < CELLS_PER_AXIS * CELLS_PER_AXIS)
 				{
-					int cellFull = false;
-					
 					// Look for space in new cell
 					for (int i = newCell * MAX_OCCUPATION; i < (newCell + 1) * MAX_OCCUPATION; i++)
 					{
@@ -150,23 +146,15 @@ namespace SF_CUDA
 							device_grid[i] = Person(device_grid[cellA * MAX_OCCUPATION + threadIdx.x]);
 							device_grid[i].state = RESERVED;
 
-							cellChanged = true;
+							reservedSpace = true;
+
 							break;
 						}
-						else
-						{
-							cellFull++;
-						}
-					}
-
-					if(cellFull >= 32)
-					{
-						int testb = 2345;
 					}
 				}
-				
+
 				// If entry to other cell was denied, block movement
-				if (!cellChanged)
+				if (!reservedSpace)
 				{
 					personA->velocity = make_float2(0.f, 0.f);
 				}
@@ -204,28 +192,15 @@ namespace SF_CUDA
 			person->goal.x - person->position.x,
 			person->goal.y - person->position.y);
 
-		// If close enough to goal, stop moving
-		if (magnitude(goalDir) < MIN_DIST)
-		{
-			person->goal = person->position;
-			person->velocity = make_float2(0.f, 0.f);
-			person->direction = make_float2(0.f, 0.f);
-			person->state = FREE;
-		}
-		// Otherwise update move direction and velocity
-		else
-		{
-			goalDir = normalize(goalDir);
-			person->direction = goalDir;
-			person->velocity = goalDir * SPEED;
-		}
+		goalDir = normalize(goalDir);
+		person->direction = goalDir;
+
+		person->updateVelocity(goalDir * SPEED);
 	}
 
-	void add_to_grid(const Person& p)
+	bool add_to_grid(const Person& p)
 	{
 		int cell = cellPosToIndex(p.position / CELL_SIZE);
-		
-		//cell_coords.x + cell_coords.y * CELLS_PER_AXIS;
 
 		for (int i = 0; i < MAX_OCCUPATION; i++)
 		{
@@ -235,8 +210,10 @@ namespace SF_CUDA
 				continue;
 
 			cells[index] = Person(p);
-			break;
+			return true;
 		}
+
+		return false;
 	}
 
 	void init()
@@ -246,43 +223,49 @@ namespace SF_CUDA
 		{
 			cells[i] = Person();
 		}
-		
+
 		int totallySpawned = 0;
-		int remainingSpawns = SPAWNED_ACTORS;
 
-		int spawnsPerRow = ceil(sqrtf(SPAWNED_ACTORS));
-		float spacing = CELLS_PER_AXIS * CELL_SIZE / spawnsPerRow;
-		for (int x = 0; x < spawnsPerRow; x++)
+		for (int i = 0; i < SPAWNED_ACTORS; i++)
 		{
-			for (int y = 0; y < spawnsPerRow; y++)
+			bool spawned = false;
+			while (!spawned)
 			{
-				float2 spawnPos = make_float2(x * spacing, y * spacing);
-				add_to_grid(Person(spawnPos, getRandomPos()));
-
-				totallySpawned++;
-				if (--remainingSpawns <= 0)
-					goto endspawn;
+				spawned = add_to_grid(Person(getRandomPos(), getRandomPos()));
 			}
+
+			totallySpawned++;
 		}
 
-		endspawn:
 		std::cout << "Spawned " << totallySpawned << " people.\n";
-		
+
 		cudaError_t error = cudaMalloc((void**)&deviceCells, CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION * sizeof(Person));
 		if (error)
-			std::cout << "Error while allocating!\n";
-		
+			std::cout << "Error while allocating CUDA memory\n";
+
+		std::cout << "Allocated " << CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION * sizeof(Person) / 1024 / 1024 << " MB on GPU\n";
+
 		cudaMemcpy(deviceCells, cells, CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION * sizeof(Person), cudaMemcpyHostToDevice);
 	}
 
+	double timeH2D = 0.f;
+	double timeD2H = 0.f;
+	int transfersMeasured = 0;
+
 	void simulate()
 	{
+		auto t1 = std::chrono::high_resolution_clock::now();
+		cudaMemcpy(deviceCells, cells, CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION * sizeof(Person), cudaMemcpyHostToDevice);
+		auto t2 = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double, std::milli> ms_double = t2 - t1;
+		timeH2D += ms_double.count();
+
 		calculateCellForce << < blocksPerGrid, threadsPerBlock >> > (deviceCells);
-		
+
 		cudaError_t error = cudaDeviceSynchronize();
 		if (error)
 		{
-			std::cout << "CF: " << cudaGetErrorName << ": " << cudaGetErrorString(error) << "\n";
+			std::cout << "CalculateForce: " << cudaGetErrorName << ": " << cudaGetErrorString(error) << "\n";
 		}
 
 		completeMove << < blocksPerGrid, MAX_OCCUPATION >> > (deviceCells);
@@ -291,30 +274,45 @@ namespace SF_CUDA
 		error = cudaDeviceSynchronize();
 		if (error)
 		{
-			std::cout << "CM: " << cudaGetErrorName << ": " << cudaGetErrorString(error) << "\n";
+			std::cout << "CompleteMove: " << cudaGetErrorName << ": " << cudaGetErrorString(error) << "\n";
 		}
 
+		t1 = std::chrono::high_resolution_clock::now();
 		cudaMemcpy(cells, deviceCells, CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION * sizeof(Person), cudaMemcpyDeviceToHost);
+		t2 = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double, std::milli> ms_double2 = t2 - t1;
+		timeD2H += ms_double2.count();
+
+		transfersMeasured++;
+	}
+
+	void printTransferTime()
+	{
+		std::cout << "Avg. Host to Device = " << timeH2D / transfersMeasured << "\n";
+		std::cout << "Avg. Device to Host = " << timeD2H / transfersMeasured << "\n";
 	}
 
 	std::vector<PersonVisuals> convertToVisual()
 	{
 		std::vector<PersonVisuals> persons;
-		int remainingDraws = DRAWN_ACTORS > 0 ? DRAWN_ACTORS : SPAWNED_ACTORS;
 
 		for (int i = 0; i < CELLS_PER_AXIS * CELLS_PER_AXIS * MAX_OCCUPATION; i++)
 		{
 			Person& p = cells[i];
 			if (p.state != FREE)
 			{
+				if (dist(p.position, p.goal) < MIN_DIST)
+				{
+					p.goal = getRandomPos();
+				}
+
 				float2 dir = p.direction;
 				dir.y = -dir.y;
-				persons.push_back(PersonVisuals(simCoordToGL(p.position), dir));
 
-				if (--remainingDraws <= 0) break;
+				persons.emplace_back(simCoordToGL(p.position), dir);
 			}
 		}
-
+		
 		return persons;
 	}
 }

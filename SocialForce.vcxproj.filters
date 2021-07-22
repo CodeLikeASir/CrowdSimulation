@@ -14,6 +14,6 @@
     <ClInclude Include="src\SF_CUDA.cuh" />
     <ClInclude Include="src\PersonStructs.h" />
     <ClInclude Include="src\Math_Helper.cuh" />
-    <ClInclude Include="src\Macros.h" />
+    <ClInclude Include="src\Config.h" />
   </ItemGroup>
 </Project>

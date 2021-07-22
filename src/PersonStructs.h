@@ -1,12 +1,12 @@
 ﻿#pragma once
-#include "Macros.h"
+#include "Config.h"
 #include "Math_Helper.cuh"
 
 // Person states
-const static short FREE = 1;
-const static short OCCUPIED = 2;
-const static short RESERVED = 3;
-const static short LEAVING = 4;
+constexpr short FREE = 1;
+constexpr short OCCUPIED = 2;
+constexpr short RESERVED = 3;
+constexpr short LEAVING = 4;
 
 // Simulated person
 struct Person
@@ -35,7 +35,17 @@ struct Person
 		position = p->position;
 		goal = p->goal;
 		direction = p->direction;
-		velocity = make_float2(p->velocity.x, p->velocity.y);
+		velocity = p->velocity;
+	}
+
+	__host__ __device__ void updateVelocity(float2 newVelocity)
+	{
+		velocity = newVelocity;
+	}
+
+	__host__ __device__ void updateVelocity(float newX, float newY)
+	{
+		velocity = make_float2(newX, newY);
 	}
 };
 
